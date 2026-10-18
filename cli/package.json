@@ -1,0 +1,14 @@
+{
+  "name": "fraywick",
+  "version": "1.0.0",
+  "description": "Verify an MCP server, Agent Skill or package against the hourly FRAYWICK anchors on Robinhood Chain",
+  "type": "module",
+  "bin": { "fraywick": "bin/fraywick.mjs" },
+  "files": ["bin", "lib", "config.json", "README.md"],
+  "engines": { "node": ">=20" },
+  "keywords": ["mcp", "model-context-protocol", "agent-skills", "tool-poisoning", "merkle", "robinhood-chain"],
+  "license": "MIT",
+  "dependencies": {
+    "viem": "2.57.3"
+  }
+}

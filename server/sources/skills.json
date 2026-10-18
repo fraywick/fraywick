@@ -1,0 +1,32 @@
+{
+  "_doc": "Public GitHub repos with Agent Skills (SKILL.md). Read as text only (git trees API + raw.githubusercontent.com), never executed. include/exclude are path prefixes. Counts verified 2026-10-18.",
+  "repos": [
+    { "repo": "anthropics/skills", "ref": "main", "include": ["skills/"] },
+    { "repo": "anthropics/claude-plugins-official", "ref": "main" },
+    { "repo": "anthropics/claude-cookbooks", "ref": "main", "include": ["skills/"] },
+    { "repo": "openai/skills", "ref": "main" },
+    { "repo": "vercel-labs/agent-skills", "ref": "main" },
+    { "repo": "vercel-labs/skills", "ref": "main", "include": ["skills/"] },
+    { "repo": "huggingface/skills", "ref": "main" },
+    { "repo": "obra/superpowers", "ref": "main" },
+    { "repo": "trailofbits/skills", "ref": "main" },
+    { "repo": "ComposioHQ/awesome-claude-skills", "ref": "master", "exclude": ["composio-skills/"] },
+    { "repo": "github/awesome-copilot", "ref": "main", "include": ["skills/"] },
+    { "repo": "microsoft/skills", "ref": "main" },
+    { "repo": "cloudflare/skills", "ref": "main" },
+    { "repo": "supabase/agent-skills", "ref": "main" },
+    { "repo": "getsentry/skills", "ref": "main" },
+    { "repo": "expo/skills", "ref": "main", "include": ["plugins/"] },
+    { "repo": "remotion-dev/skills", "ref": "main" },
+    { "repo": "callstackincubator/agent-skills", "ref": "main", "include": ["skills/"] },
+    { "repo": "K-Dense-AI/claude-scientific-skills", "ref": "main" },
+    { "repo": "wshobson/agents", "ref": "main" },
+    { "repo": "neondatabase/agent-skills", "ref": "main", "exclude": ["evals/"] },
+    { "repo": "hashicorp/agent-skills", "ref": "main" },
+    { "repo": "better-auth/skills", "ref": "main" },
+    { "repo": "google-gemini/gemini-skills", "ref": "main" },
+    { "repo": "stripe/ai", "ref": "main", "include": ["skills/"] },
+    { "repo": "langchain-ai/langchain-skills", "ref": "main" },
+    { "repo": "mcp-use/mcp-use", "ref": "main", "include": ["skills/"] }
+  ]
+}

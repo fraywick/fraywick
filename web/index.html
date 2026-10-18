@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FRAYWICK · Every rug frays before it's pulled.</title>
+<meta name="description" content="FRAYWICK hashes the tool definitions of public MCP servers, Agent Skills and their packages every hour and stamps each hour's merkle root on Robinhood Chain. When a tool changes after people trusted it, you see the diff and can prove when it changed.">
+<meta name="theme-color" content="#111111">
+<link rel="icon" href="/favicon.ico" sizes="48x48"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest">
+<meta property="og:type" content="website"><meta property="og:site_name" content="FRAYWICK">
+<meta property="og:title" content="FRAYWICK · Every rug frays before it's pulled.">
+<meta property="og:description" content="A public watchtower for MCP servers and Agent Skills. Every tool definition hashed hourly, every hour stamped on Robinhood Chain.">
+<meta property="og:image" content="https://fraywick.xyz/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A charcoal woven tapestry with loose safety-orange threads hanging out of it">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="FRAYWICK · Every rug frays before it's pulled."><meta name="twitter:image" content="https://fraywick.xyz/og.jpg">
+<link rel="preload" href="/assets/fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/geist-mono.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/shared/chrome.css">
+<link rel="stylesheet" href="/landing/landing.css">
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js"}}</script>
+</head>
+<body class="landing">
+<a class="skip" href="#check-t">Skip to the check box</a>
+<header id="bar"></header>
+
+<canvas id="gl" aria-hidden="true"></canvas>
+<img id="poster" class="poster" src="/assets/poster.webp" alt="" hidden>
+<div id="tags" class="tags"></div>
+
+<main>
+  <canvas id="minis" aria-hidden="true"></canvas>
+  <section class="hero" aria-labelledby="hl">
+    <div class="hero-copy">
+      <h1 id="hl">Every rug frays before it's pulled.</h1>
+      <p class="sub">We hash the tool definitions of public MCP servers, Agent Skills and their packages every hour, and stamp each hour on Robinhood Chain.</p>
+      <div class="checkwrap">
+        <form id="check" class="checkbox" action="/check/" method="get" role="search">
+          <label class="sr" for="check-t">MCP server URL, npm:package or SKILL.md link</label>
+          <input id="check-t" name="t" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="paste an MCP server URL, npm:package or a SKILL.md link" required>
+          <button class="btn" type="submit">Check</button>
+        </form>
+        <p class="hint" data-hint aria-live="polite"></p>
+        <div id="verdict" class="verdict" aria-live="polite" hidden></div>
+      </div>
+      <p id="live" class="live"><span class="dot"></span><span class="txt">Reading the watchtower…</span></p>
+    </div>
+    <p class="legend" id="legend"><span>1 warp end = 1 tracked server, skill or package</span><span>1 raised ridge = 1 hour stamped on chain</span><span class="drag" hidden>pull a loose thread</span></p>
+    <a class="scroll-cue" href="#story">How one tool becomes one row <span aria-hidden="true">↓</span></a>
+  </section>
+
+  <section id="story" class="story" aria-label="From one tool to one row on chain">
+    <div class="story-pin">
+      <ol class="steps">
+        <li class="step" data-step="1"><p class="k">01 / 05 · a tool definition</p><h2>One tool, as the model reads it.</h2><div class="body" data-s1></div></li>
+        <li class="step" data-step="2"><p class="k">02 / 05 · canonical JSON → keccak256</p><h2>Canonical JSON, then keccak256.</h2><div class="body" data-s2></div></li>
+        <li class="step" data-step="3"><p class="k">03 / 05 · merkle root of this hour</p><h2>Every hash, braided into one root.</h2><div class="body" data-s3></div></li>
+        <li class="step" data-step="4"><p class="k">04 / 05 · stamped on Robinhood Chain</p><h2>The root is sealed on chain.</h2><div class="body" data-s4></div></li>
+        <li class="step" data-step="5"><p class="k">05 / 05 · every hour, one row</p><h2>Every hour, one more row.</h2><div class="body" data-s5></div></li>
+      </ol>
+      <div class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+  </section>
+
+  <section id="ledger" class="sec ledger" aria-labelledby="ledger-h">
+    <div class="in">
+      <p class="kicker">The ledger</p>
+      <h2 id="ledger-h">One woven row per hour.</h2>
+      <ol id="rows" class="rows" aria-label="Anchored hours, newest first"></ol>
+      <p id="rows-end" class="rows-end"></p>
+    </div>
+  </section>
+
+  <section id="how" class="sec how" aria-labelledby="how-h">
+    <div class="in">
+      <p class="kicker">How it works</p>
+      <h2 id="how-h">Read. Hash. Stamp. Every hour.</h2>
+      <ol class="hsteps">
+        <li><span class="n">01</span><h3>Read</h3><p>Every hour we read the official MCP registry and call <code>tools/list</code>, <code>prompts/list</code> and <code>resources/list</code> on each public remote server, plus popular <code>SKILL.md</code> files and package metadata from npm and PyPI. Read only: we never install or run anything.</p>
+          <p class="num" data-stat="read"></p></li>
+        <li><span class="n">02</span><h3>Hash</h3><p>Each tool definition (name, title, description, input and output schema, annotations) is canonicalised with RFC&nbsp;8785 and hashed with keccak256. One leaf per server, skill and package.</p>
+          <p class="num" data-stat="hash"></p></li>
+        <li><span class="n">03</span><h3>Stamp</h3><p>All leaves of the hour go into one merkle tree. Its root is posted to the ToolAnchor contract on Robinhood Chain, and the full snapshot is published so anyone can rebuild it.</p>
+          <p class="num" data-stat="stamp"></p></li>
+      </ol>
+      <div class="labels">
+        <p>When a definition changes, we keep both versions, show the diff and score it with plain rules: new instructions aimed at the model, hidden unicode, new hosts, sensitive paths, new free-text parameters, sudden length jumps, a new package maintainer.</p>
+        <ul>
+          <li><span class="chip cosmetic">cosmetic</span><span>score under 20 · wording only</span></li>
+          <li><span class="chip behavior">behavior</span><span>20 to 59 · what the tool asks for or does changed</span></li>
+          <li><span class="chip suspicious">suspicious</span><span>60 or more · also flagged on chain with <code>flag()</code></span></li>
+        </ul>
+        <p class="fine">Labels describe the diff, not intent. Every label links to the raw diff and the on-chain proof.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="verify" class="sec verify" aria-labelledby="verify-h">
+    <div class="in">
+      <p class="kicker">Verify it yourself</p>
+      <h2 id="verify-h">Don't trust us. Check the chain.</h2>
+      <div class="vgrid">
+        <div class="vcard" data-cli hidden>
+          <h3>From your terminal</h3>
+          <div class="codeline"><code id="cli-line">npx fraywick verify https://example.com/mcp</code></div>
+          <p>Fetches the target, recomputes the hash on your machine, pulls the merkle proof from us and calls <code>verify()</code> on Robinhood Chain through a public RPC. Exit code 0 means it matches.</p>
+        </div>
+        <div class="vcard">
+          <h3>From your agent</h3>
+          <div class="codeline"><code><span data-origin></span>/mcp</code></div>
+          <p>FRAYWICK is itself a read-only remote MCP server with four tools: <code>check_server</code>, <code>check_skill</code>, <code>recent_changes</code>, <code>get_proof</code>. Its own tool hashes sit in its own snapshots.</p>
+        </div>
+        <div class="vcard">
+          <h3>From your browser</h3>
+          <p>Every server page has a <b>verify in your browser</b> button: it fetches the proof and calls <code>verify(epoch, leaf, proof)</code> on chain. <a href="/proof/">Proof</a> rebuilds any hour's root from its snapshot.</p>
+          <p class="addr" data-anchor-wrap hidden>ToolAnchor <a data-anchor target="_blank" rel="noopener"></a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="token" class="sec token" aria-labelledby="token-h">
+    <div class="in">
+      <p class="kicker">The token</p>
+      <h2 id="token-h">The token <span class="sym" data-symbol hidden></span></h2>
+      <div class="tagstage">
+        <div class="tag3d" id="tag3d" aria-hidden="true"></div>
+        <div class="tagover">
+        <div class="ca">
+          <p class="k">Contract address</p>
+          <div class="codeline"><code data-ca>0x0000000000000000000000000000000000000000</code><span id="ca-copy"></span></div>
+          <p class="fine" id="ca-note">Shown as the zero address until launch. Only trust the address on this page.</p>
+        </div>
+        <div class="launch">
+          <p class="k">Launch on Pons</p>
+          <p class="cd" data-countdown>—</p>
+          <p class="fine" id="launch-at"></p>
+          <a class="btn" data-buy target="_blank" rel="noopener">Buy on Pons</a>
+        </div>
+        </div>
+      </div>
+      <p class="fine">Tax 0%. Creator fees go to the creator wallet. The token has no fee, pot or burn mechanics, and holding it changes nothing about what FRAYWICK watches or shows.</p>
+    </div>
+  </section>
+
+  <section id="faq" class="sec faq" aria-labelledby="faq-h">
+    <div class="in">
+      <p class="kicker">FAQ</p>
+      <h2 id="faq-h">Questions</h2>
+      <details><summary>What is an MCP rug pull?</summary><p>An MCP server's tools come with descriptions that the model reads as instructions. A server can look harmless when you add it, then change a description later, for example telling the model to read a private file and pass it along. Clients rarely show those changes. FRAYWICK records every version and stamps when it changed (OWASP MCP03, tool poisoning).</p></details>
+      <details><summary>Do you run the servers or install the packages?</summary><p>No. We only read: registry JSON, <code>tools/list</code> and friends over HTTPS, package metadata from npm and PyPI, and skill files as text. Nothing third-party is installed, imported or executed, and fetched text is never fed to a model as instructions.</p></details>
+      <details><summary>What does "suspicious" mean?</summary><p>The change scored 60 or more on plain rules (see above). It is a description of the diff, not an accusation. Read the diff and decide.</p></details>
+      <details><summary>What about servers that need a login?</summary><p>Servers that answer 401 or 403 are recorded as auth-required with their registry metadata only. We do not log in anywhere.</p></details>
+      <details><summary>Why put it on a chain?</summary><p>So nobody has to trust our database. Each hour's merkle root is on Robinhood Chain with the time it was posted, and the snapshot behind it is public, so anyone can prove what a tool said at a given hour.</p></details>
+      <details><summary>I run a server. How do I opt out?</summary><p>See the <a href="/docs/#bot">bot policy</a>: our user agent, our rate and how to ask us to stop.</p></details>
+    </div>
+  </section>
+</main>
+<footer id="foot"></footer>
+
+<script type="module" src="/shared/site.js"></script>
+<script type="module" src="/landing/main.js"></script>
+</body>
+</html>

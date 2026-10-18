@@ -1,0 +1,23 @@
+{
+  "name": "fraywick-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FRAYWICK watchtower: MCP registry crawler, tool hashing, hourly merkle anchors on Robinhood Chain, read-only API + MCP endpoint",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node index.mjs",
+    "api": "ROLE=api node index.mjs",
+    "crawler": "ROLE=crawler node index.mjs",
+    "dev": "SERVE_WEB=1 PORT=4892 DATA_DIR=./data-dev node index.mjs",
+    "crawl-once": "DRY_POST=1 node crawl-once.mjs",
+    "test": "NO_NETWORK=1 node --test test/*.test.mjs",
+    "vectors": "node test/make-vectors.mjs"
+  },
+  "dependencies": {
+    "@openzeppelin/merkle-tree": "1.0.8",
+    "viem": "2.57.3"
+  }
+}

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://fraywick.xyz/</loc><changefreq>hourly</changefreq></url>
+  <url><loc>https://fraywick.xyz/feed/</loc><changefreq>hourly</changefreq></url>
+  <url><loc>https://fraywick.xyz/check/</loc></url>
+  <url><loc>https://fraywick.xyz/proof/</loc><changefreq>hourly</changefreq></url>
+  <url><loc>https://fraywick.xyz/docs/</loc></url>
+</urlset>

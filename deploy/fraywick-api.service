@@ -1,0 +1,37 @@
+# /etc/systemd/system/fraywick-api.service — FRAYWICK HTTP API + read-only /mcp (ROLE=api). No keys: the API never posts.
+# Installed by deploy/provision.sh, which substitutes the real port for PORT_PLACEHOLDER (default 4891, checked with `ss -ltnp` first).
+# Layout: /srv/fraywick/{web,server,contracts}; SQLite + snapshots in /srv/fraywick/server/data (shared with fraywick-crawler, WAL).
+# Settings (root:fraywick 0640): /etc/fraywick/fraywick.env — PUBLIC_URL=https://<domain> · RPC_URL · CHECK_HTTP_ALLOW · ANCHOR_ADDRESS (else contracts/deployments)
+[Unit]
+Description=FRAYWICK API (127.0.0.1)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fraywick
+Group=fraywick
+WorkingDirectory=/srv/fraywick
+ExecStart=/usr/bin/env node server/index.mjs
+Environment=NODE_ENV=production
+Environment=ROLE=api
+Environment=PORT=PORT_PLACEHOLDER
+Environment=BIND=127.0.0.1
+Environment=TRUST_PROXY=1
+Environment=DATA_DIR=/srv/fraywick/server/data
+Environment=TOKEN_JSON=/srv/fraywick/web/token.json
+Environment=DEPLOYMENT_JSON=/srv/fraywick/contracts/deployments/robinhood.json
+Environment=ANCHOR_ABI_JSON=/srv/fraywick/contracts/abi/ToolAnchor.json
+EnvironmentFile=-/etc/fraywick/fraywick.env
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+MemoryMax=1G
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/srv/fraywick/server/data
+
+[Install]
+WantedBy=multi-user.target

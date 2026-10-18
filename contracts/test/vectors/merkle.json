@@ -1,0 +1,226 @@
+{
+  "format": "standard-v1",
+  "leafEncoding": [
+    "string",
+    "string",
+    "bytes32",
+    "bytes32",
+    "bytes32"
+  ],
+  "tree": [
+    "0xfd0f693d29a16553652dbe83b17504b4f45f4a6a41624492c731cedb5c4ddc3f",
+    "0x335663b96a072688c90953b8bdaa23115f795752dd6bc57ce31f0d22e12ba524",
+    "0xdbf099ba7ffd4e15dd760f5ca3fc450fcfb2d8994b95ad56bc7db4db946abf53",
+    "0x8af018237ce975ae6e1de11399b461edbd597c19569fed7a2ed23dd6c4be51d1",
+    "0x41c079796ea4ac0b07f7b77bbe0991c37142205d677d2fbb28e74a35bd079e97",
+    "0xdb1d21f4206a12a3e6742234d4785967ac3a749c1f4e7970bba204d22c589bbd",
+    "0xaf5ad0f6059686c6de8c10cd736477711b9cb510e5e304b2d2717ec567f025f2",
+    "0xa7ade0543e1026d65632307e500cb3eab6cff6cf5daf7f79f322ea13542ed37b",
+    "0x3397235e7b397a4484aa455e2e5f9815e7824b2c72943f39143fb3e140997ee4",
+    "0x211876cf153ff21b8cef6d17273f1661bd350f556d41b402e7148e06c40e9ced",
+    "0x113c661798380f6c97df06d975a412e4cbb309152a3bc42f7c919b0a3714c3b2"
+  ],
+  "values": [
+    {
+      "value": [
+        "io.github.example/files",
+        "1.2.0",
+        "0x61321fbd05d58ea16ba0f8ff71d5f91c30c021a755ae307539e704379b6e5baa",
+        "0x166ec030fdc181cdd0f9cac90c3a67f4fcc7c4b863753bae87aedfac5cb973ee",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "treeIndex": 9
+    },
+    {
+      "value": [
+        "com.example/empty",
+        "0.1.0",
+        "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "treeIndex": 6
+    },
+    {
+      "value": [
+        "skill:anthropics/skills:skills/pdf/SKILL.md",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "0x6dfa100e902be2877740223e21ec86348c3c298afd4880fdec84d2621f8dbd9a",
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "treeIndex": 7
+    },
+    {
+      "value": [
+        "npm:@modelcontextprotocol/server-everything",
+        "2026.7.1",
+        "0x943c741e6c26cdcecc655be7779677c34886080bf5a0cc218d6acd9557b70bca",
+        "0x0d31e35d5b77b91cc6dc2dc6c7941dc5f051db135fe09a9370d8f5fc0a595158",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "treeIndex": 5
+    },
+    {
+      "value": [
+        "pypi:mcp-server-fetch",
+        "0.6.3",
+        "0x00f3d3e8d256d5ae294a41d7ea455c4aaf6fc010052692d5568e622aaf54ae5d",
+        "0xa0aaf57e0e1fd68ac7e68d5c2580fbe08bebaceb96b47705bf10c27ac42071fd",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "treeIndex": 10
+    },
+    {
+      "value": [
+        "unicode:ünïcödé/日本",
+        "v1-β",
+        "0x6534ef3d26cca691c58ad481bfbe0c23e8afee77fa43b19b302ca6023cc8a294",
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "treeIndex": 8
+    }
+  ],
+  "_doc": "FRAYWICK merkle test vectors. Top level = StandardMerkleTree.dump() (format standard-v1: leafEncoding, tree, values[].value/treeIndex) + root. Leaf = keccak256(bytes.concat(keccak256(abi.encode(string,string,bytes32,bytes32,bytes32)))); OZ StandardMerkleTree (sorted pairs). epoch is arbitrary.",
+  "encoding": [
+    "string",
+    "string",
+    "bytes32",
+    "bytes32",
+    "bytes32"
+  ],
+  "epoch": 493000,
+  "root": "0xfd0f693d29a16553652dbe83b17504b4f45f4a6a41624492c731cedb5c4ddc3f",
+  "jcs": {
+    "input": {
+      "name": "read_file",
+      "description": "Read a file from the workspace.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true
+      }
+    },
+    "canonical": "{\"annotations\":{\"readOnlyHint\":true},\"description\":\"Read a file from the workspace.\",\"inputSchema\":{\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"type\":\"object\"},\"name\":\"read_file\"}",
+    "hash": "0x6534ef3d26cca691c58ad481bfbe0c23e8afee77fa43b19b302ca6023cc8a294"
+  },
+  "emptyListHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+  "leaves": [
+    {
+      "key": "io.github.example/files",
+      "values": [
+        "io.github.example/files",
+        "1.2.0",
+        "0x61321fbd05d58ea16ba0f8ff71d5f91c30c021a755ae307539e704379b6e5baa",
+        "0x166ec030fdc181cdd0f9cac90c3a67f4fcc7c4b863753bae87aedfac5cb973ee",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "leaf": "0x211876cf153ff21b8cef6d17273f1661bd350f556d41b402e7148e06c40e9ced",
+      "proof": [
+        "0x113c661798380f6c97df06d975a412e4cbb309152a3bc42f7c919b0a3714c3b2",
+        "0x8af018237ce975ae6e1de11399b461edbd597c19569fed7a2ed23dd6c4be51d1",
+        "0xdbf099ba7ffd4e15dd760f5ca3fc450fcfb2d8994b95ad56bc7db4db946abf53"
+      ]
+    },
+    {
+      "key": "com.example/empty",
+      "values": [
+        "com.example/empty",
+        "0.1.0",
+        "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "leaf": "0xaf5ad0f6059686c6de8c10cd736477711b9cb510e5e304b2d2717ec567f025f2",
+      "proof": [
+        "0xdb1d21f4206a12a3e6742234d4785967ac3a749c1f4e7970bba204d22c589bbd",
+        "0x335663b96a072688c90953b8bdaa23115f795752dd6bc57ce31f0d22e12ba524"
+      ]
+    },
+    {
+      "key": "skill:anthropics/skills:skills/pdf/SKILL.md",
+      "values": [
+        "skill:anthropics/skills:skills/pdf/SKILL.md",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "0x6dfa100e902be2877740223e21ec86348c3c298afd4880fdec84d2621f8dbd9a",
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "leaf": "0xa7ade0543e1026d65632307e500cb3eab6cff6cf5daf7f79f322ea13542ed37b",
+      "proof": [
+        "0x3397235e7b397a4484aa455e2e5f9815e7824b2c72943f39143fb3e140997ee4",
+        "0x41c079796ea4ac0b07f7b77bbe0991c37142205d677d2fbb28e74a35bd079e97",
+        "0xdbf099ba7ffd4e15dd760f5ca3fc450fcfb2d8994b95ad56bc7db4db946abf53"
+      ]
+    },
+    {
+      "key": "npm:@modelcontextprotocol/server-everything",
+      "values": [
+        "npm:@modelcontextprotocol/server-everything",
+        "2026.7.1",
+        "0x943c741e6c26cdcecc655be7779677c34886080bf5a0cc218d6acd9557b70bca",
+        "0x0d31e35d5b77b91cc6dc2dc6c7941dc5f051db135fe09a9370d8f5fc0a595158",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "leaf": "0xdb1d21f4206a12a3e6742234d4785967ac3a749c1f4e7970bba204d22c589bbd",
+      "proof": [
+        "0xaf5ad0f6059686c6de8c10cd736477711b9cb510e5e304b2d2717ec567f025f2",
+        "0x335663b96a072688c90953b8bdaa23115f795752dd6bc57ce31f0d22e12ba524"
+      ]
+    },
+    {
+      "key": "pypi:mcp-server-fetch",
+      "values": [
+        "pypi:mcp-server-fetch",
+        "0.6.3",
+        "0x00f3d3e8d256d5ae294a41d7ea455c4aaf6fc010052692d5568e622aaf54ae5d",
+        "0xa0aaf57e0e1fd68ac7e68d5c2580fbe08bebaceb96b47705bf10c27ac42071fd",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "leaf": "0x113c661798380f6c97df06d975a412e4cbb309152a3bc42f7c919b0a3714c3b2",
+      "proof": [
+        "0x211876cf153ff21b8cef6d17273f1661bd350f556d41b402e7148e06c40e9ced",
+        "0x8af018237ce975ae6e1de11399b461edbd597c19569fed7a2ed23dd6c4be51d1",
+        "0xdbf099ba7ffd4e15dd760f5ca3fc450fcfb2d8994b95ad56bc7db4db946abf53"
+      ]
+    },
+    {
+      "key": "unicode:ünïcödé/日本",
+      "values": [
+        "unicode:ünïcödé/日本",
+        "v1-β",
+        "0x6534ef3d26cca691c58ad481bfbe0c23e8afee77fa43b19b302ca6023cc8a294",
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "leaf": "0x3397235e7b397a4484aa455e2e5f9815e7824b2c72943f39143fb3e140997ee4",
+      "proof": [
+        "0xa7ade0543e1026d65632307e500cb3eab6cff6cf5daf7f79f322ea13542ed37b",
+        "0x41c079796ea4ac0b07f7b77bbe0991c37142205d677d2fbb28e74a35bd079e97",
+        "0xdbf099ba7ffd4e15dd760f5ca3fc450fcfb2d8994b95ad56bc7db4db946abf53"
+      ]
+    }
+  ],
+  "negative": {
+    "values": [
+      "io.github.example/files",
+      "1.2.1",
+      "0x61321fbd05d58ea16ba0f8ff71d5f91c30c021a755ae307539e704379b6e5baa",
+      "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "leaf": "0xfa259e9c6277ba4e2f5eee3991f3819f99e997164a3ccb4ddeba4fdb92dcf4fb",
+    "proofOf": "io.github.example/files",
+    "expect": false
+  }
+}

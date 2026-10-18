@@ -1,0 +1,40 @@
+# /etc/systemd/system/fraywick-crawler.service — FRAYWICK crawler + epoch job + poster (ROLE=crawler).
+# Registry sync every 10 min (full every 24 h); at :05 each UTC hour: probe remotes (deadline :50), npm/PyPI metadata, skills →
+# snapshot data/snapshots/<epoch>.json.gz → ToolAnchor.post (only when DRY_POST=0 is set in fraywick.env) → flag() suspicious changes.
+# Secrets (root:root 0600, read by systemd as root before dropping to the fraywick user; never copied by deploy.sh):
+#   /etc/fraywick/poster.env   POSTER_PRIVATE_KEY=0x…   (poster 0x3D0d1B5dfe2f5004640A42595EbCff5fE3dE59eC, holds a little ETH for gas)
+#   /etc/fraywick/github.env   GITHUB_TOKEN=…           (optional, read-only public scope: raises the GitHub API limit for skills)
+# Settings: /etc/fraywick/fraywick.env — PUBLIC_URL=https://<domain> (required to post) · DRY_POST=0 (go live) · CONCURRENCY · RPC_URL
+[Unit]
+Description=FRAYWICK crawler + hourly anchor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fraywick
+Group=fraywick
+WorkingDirectory=/srv/fraywick
+ExecStart=/usr/bin/env node server/index.mjs
+Environment=NODE_ENV=production
+Environment=ROLE=crawler
+Environment=DRY_POST=1
+Environment=DATA_DIR=/srv/fraywick/server/data
+Environment=TOKEN_JSON=/srv/fraywick/web/token.json
+Environment=DEPLOYMENT_JSON=/srv/fraywick/contracts/deployments/robinhood.json
+Environment=ANCHOR_ABI_JSON=/srv/fraywick/contracts/abi/ToolAnchor.json
+EnvironmentFile=-/etc/fraywick/fraywick.env
+EnvironmentFile=-/etc/fraywick/poster.env
+EnvironmentFile=-/etc/fraywick/github.env
+Restart=always
+RestartSec=10
+LimitNOFILE=65536
+MemoryMax=2G
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/srv/fraywick/server/data
+
+[Install]
+WantedBy=multi-user.target

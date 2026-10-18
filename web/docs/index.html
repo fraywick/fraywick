@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Docs · FRAYWICK</title>
+<meta name="description" content="What FRAYWICK watches, the exact hashing spec, how changes are scored, the bot policy, the CLI, the /mcp endpoint, the ToolAnchor contract and the honest limits.">
+<meta name="theme-color" content="#f1eee7">
+<link rel="icon" href="/favicon.ico" sizes="48x48"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest">
+<meta property="og:type" content="website"><meta property="og:site_name" content="FRAYWICK"><meta property="og:title" content="Docs · FRAYWICK"><meta property="og:description" content="Hashing spec, bot policy, CLI, /mcp endpoint, contract and limits.">
+<meta property="og:image" content="https://fraywick.xyz/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://fraywick.xyz/og.jpg">
+<link rel="preload" href="/assets/fonts/geist-mono.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/sofia-sans-extra-condensed.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/shared/chrome.css">
+<link rel="stylesheet" href="/shared/paper.css">
+</head>
+<body>
+<header id="bar"></header>
+<main class="page doc">
+  <h1 class="disp">Docs</h1>
+  <p class="lede">FRAYWICK is a public watchtower for MCP servers and Agent Skills. Every hour it reads public tool definitions, hashes every definition and anchors one merkle root on Robinhood Chain. It routes nothing and hosts nothing: it only reads and stamps.</p>
+  <nav class="toc" aria-label="On this page"><a href="#watch">What we watch</a><a href="#hashing">Hashing</a><a href="#scoring">Scoring</a><a href="#bot">Bot policy</a><a href="#cli">CLI</a><a href="#mcp">/mcp</a><a href="#contract">Contract</a><a href="#api">API</a><a href="#limits">Limits</a></nav>
+
+  <h2 id="watch">What we watch</h2>
+  <ul>
+    <li><b>MCP servers</b> from the official registry (<code>registry.modelcontextprotocol.io/v0/servers</code>, latest versions). For every public remote endpoint (streamable HTTP or SSE) we read <code>tools/list</code>, and <code>prompts/list</code> / <code>resources/list</code> when the server advertises them. Both the stateless 2026-07-28 style and the older <code>initialize</code> handshake are supported.</li>
+    <li><b>Packages</b> named by those servers on npm and PyPI: latest version, file integrity hashes and maintainers. Metadata only, nothing is downloaded or installed.</li>
+    <li><b>Agent Skills</b>: <code>SKILL.md</code> files from a public list of GitHub repositories, read as text at a pinned commit.</li>
+  </ul>
+
+  <h2 id="hashing">Hashing</h2>
+  <p>Item hash = <code>keccak256(utf8(JCS(view)))</code>, where JCS is RFC 8785 canonical JSON and the view keeps only these fields (missing fields are omitted):</p>
+<pre><code>tool      {name, title, description, inputSchema, outputSchema, annotations}
+prompt    {name, title, description, arguments}
+resource  {uri, name, title, description, mimeType}</code></pre>
+  <p>List hash = <code>keccak256(concat(sorted item hashes))</code>. An empty list hashes to <code>keccak256(0x)</code>; a list the server does not advertise, or that could not be read, is <code>bytes32(0)</code>.</p>
+  <p>One leaf per tracked thing, all with the encoding <code>["string","string","bytes32","bytes32","bytes32"]</code>:</p>
+<pre><code>server   [serverId, version, toolsHash, promptsHash, resourcesHash]
+skill    ["skill:" + repo + ":" + path, commit, keccak256(SKILL.md bytes), 0x0, 0x0]
+package  ["npm:" + name | "pypi:" + name, version, integrityHash, maintainersHash, 0x0]
+
+leaf hash = keccak256(bytes.concat(keccak256(abi.encode(values))))</code></pre>
+  <p><code>integrityHash</code> is <code>keccak256(utf8(dist.integrity))</code> on npm, and on PyPI <code>keccak256</code> of the sorted <code>sha256:&lt;hex&gt;</code> lines of every file of the release. <code>maintainersHash</code> is <code>keccak256(utf8(JCS(sorted unique names)))</code>.</p>
+  <p>At minute :05 of every hour all leaves go into an OpenZeppelin <code>StandardMerkleTree</code> (sorted leaves, sorted pairs). The snapshot with every leaf and the item-level detail is published at <code>/snapshots/&lt;epoch&gt;.json</code>, and the root is posted with <code>post(epoch, root, leafCount, snapshotURI)</code>, where <code>epoch</code> is the UTC hour number (<code>unix / 3600</code>). <a href="/proof/">Proof</a> rebuilds any root in your browser.</p>
+
+  <h2 id="scoring">Scoring and labels</h2>
+  <p>When a hash changes we keep both versions, compute a text diff and add up plain rules (0 to 100): new instructions aimed at the model ("ignore previous", "before using this tool", "do not tell the user", <code>&lt;IMPORTANT&gt;</code>…), invisible, bidi or tag unicode, new URLs and hosts (more for tunnels, paste sites, webhooks and raw IPs), new parameters that ask for secrets or free-form context (<code>notes</code>, <code>context</code>, <code>~/.ssh</code>, <code>.env</code>, <code>id_rsa</code>, <code>wallet</code>, <code>seed phrase</code>…), shell pipes, description length jumps, wider tool annotations, and on packages a new maintainer or new file bytes under the same version.</p>
+  <ul>
+    <li><span class="chip cosmetic">cosmetic</span> under 20: wording only.</li>
+    <li><span class="chip behavior">behavior</span> 20 to 59: what the tool asks for or does changed.</li>
+    <li><span class="chip suspicious">suspicious</span> 60 or more: also recorded on chain with <code>flag(epoch, subject, oldHash, newHash, severity, note)</code> (at most 10 per hour).</li>
+  </ul>
+  <p>A label describes a diff. It is not an accusation, and fetched text is never given to a model as instructions.</p>
+
+  <h2 id="bot">Bot policy</h2>
+  <p>Our crawler identifies itself as <code>FraywickBot/1.0 (+<span data-origin></span>/docs#bot)</code>. It sends read-only MCP requests (<code>tools/list</code>, <code>prompts/list</code>, <code>resources/list</code>, and the handshake they need) once an hour, with at most 16 requests in flight overall and about one request per second per host. It never logs in: a server that answers 401 or 403 is recorded as login-required with its registry metadata only. It backs off on 429 and on repeated failures.</p>
+  <p><b>To opt out</b>, add a group for <code>FraywickBot</code> to your <code>robots.txt</code> (we re-read it daily), for example:</p>
+<pre><code>User-agent: FraywickBot
+Disallow: /</code></pre>
+  <p>or ask us<span data-contact></span> and we add your host to the opt-out list. Opted-out hosts keep their registry metadata only and are counted in <code>/api/health</code>.</p>
+
+  <h2 id="cli">CLI</h2>
+  <div data-cli hidden>
+    <pre><code>npx fraywick verify https://example.com/mcp
+npx fraywick verify npm:some-package
+npx fraywick verify https://github.com/owner/repo/blob/main/skills/x/SKILL.md --epoch 497872</code></pre>
+    <p>The CLI fetches the target, recomputes the hash on your machine, asks the API for the merkle proof and calls <code>verify()</code> on Robinhood Chain through <code>https://robinhood-rpc.publicnode.com</code>. Exit code 0 = matches the anchor, 1 = differs, 2 = could not check.</p>
+  </div>
+  <p data-cli-off>The command line verifier is not published on npm yet. Until it is, use <b>verify in your browser</b> on any server page, or the <code>/mcp</code> endpoint below.</p>
+
+  <h2 id="mcp">/mcp endpoint</h2>
+  <p>FRAYWICK is itself a read-only remote MCP server at <code><span data-origin></span>/mcp</code> (stateless 2026-07-28 style and the legacy handshake). Tools: <code>check_server</code>, <code>check_skill</code>, <code>recent_changes</code>, <code>get_proof</code>. Their descriptions are plain, and their hashes are in our own snapshots like everyone else's.</p>
+
+  <h2 id="contract">Contract</h2>
+  <dl class="kv">
+    <dt>ToolAnchor</dt><dd><span data-anchor-wrap hidden><a data-anchor target="_blank" rel="noopener"></a></span><span data-anchor-none>address published at deploy</span></dd>
+    <dt>chain</dt><dd>Robinhood Chain mainnet, chain id 4663</dd>
+    <dt>views</dt><dd><code>anchors(epoch) → (root, leafCount, postedAt)</code>, <code>latestEpoch()</code>, <code>anchorCount()</code>, <code>verify(epoch, leaf, proof) → bool</code></dd>
+    <dt>writes</dt><dd><code>post</code> and <code>flag</code>, poster key only; epochs strictly increase and cannot be in the future. No funds, no token, no upgrades.</dd>
+    <dt>explorer</dt><dd><a href="https://robinhoodchain.blockscout.com" target="_blank" rel="noopener" data-explorer>robinhoodchain.blockscout.com</a></dd>
+  </dl>
+
+  <h2 id="api">Public API</h2>
+<pre><code>GET  /api/health    GET  /api/stats    GET  /api/feed?cursor=&amp;label=
+GET  /api/server/&lt;id&gt;    GET  /api/item/&lt;id&gt;/history
+GET  /api/anchors?limit=    GET  /api/proof?epoch=&amp;leafKey=
+POST /api/check {"target": "…"}    GET /snapshots/&lt;epoch&gt;.json</code></pre>
+  <p>JSON, read-only CORS, rate limited. <code>/api/check</code> accepts HTTPS URLs only, refuses private, loopback, link-local and metadata addresses (also after redirects), caps responses at 2&nbsp;MB and gives up after 10&nbsp;s.</p>
+
+  <h2 id="limits">Honest limits</h2>
+  <ul>
+    <li>We see what a server returns to an anonymous client from our network. A server can answer differently to other clients, at other times or after login. Login-required servers are metadata only.</li>
+    <li>Hourly means a definition can change and change back between two reads.</li>
+    <li>We never run code. A package's behaviour can change without its metadata changing; we only see version, file hashes and maintainers.</li>
+    <li>Scores are heuristics. A benign rewrite can score high and a careful attack can score low. Read the diff.</li>
+    <li>The anchor proves what we observed and when. It does not prove the observation was complete.</li>
+  </ul>
+</main>
+<footer id="foot"></footer>
+<script type="module" src="/shared/site.js"></script>
+<script type="module">
+  import { onConfig, site, isAddr, explorer, h } from '/shared/site.js'
+  onConfig(() => {
+    document.querySelectorAll('[data-cli]').forEach((e) => (e.hidden = !site.cli))
+    document.querySelectorAll('[data-cli-off]').forEach((e) => (e.hidden = !!site.cli))
+    document.querySelectorAll('[data-anchor-none]').forEach((e) => (e.hidden = isAddr(site.anchor_address)))
+    document.querySelectorAll('[data-explorer]').forEach((a) => { a.href = explorer(); a.textContent = explorer().replace(/^https?:\/\//, '') })
+    const c = document.querySelector('[data-contact]'); c.textContent = ''
+    const links = [site.x && h('a', { href: site.x, target: '_blank', rel: 'noopener' }, 'X'), site.telegram && h('a', { href: site.telegram, target: '_blank', rel: 'noopener' }, 'Telegram')].filter(Boolean)
+    if (links.length) { c.append(' on '); links.forEach((l, i) => { if (i) c.append(' or '); c.append(l) }) }
+    if (location.hash) document.querySelector(location.hash)?.scrollIntoView()
+  })
+</script>
+</body>
+</html>

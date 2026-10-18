@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dev/
+Disallow: /mcp
+
+Sitemap: https://fraywick.xyz/sitemap.xml

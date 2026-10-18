@@ -1,0 +1,7 @@
+{
+  "_doc": "Filled by the lead after deploy: api = https://<domain>, anchor = ToolAnchor address on Robinhood Chain (4663). Flags --api / --anchor / --rpc and env FRAYWICK_API / FRAYWICK_ANCHOR / FRAYWICK_RPC override.",
+  "api": "https://fraywick.xyz",
+  "anchor": "0xdE841BaA3f9158C0b8E064cfF8ce124C864986B3",
+  "rpc": "https://robinhood-rpc.publicnode.com",
+  "chainId": 4663
+}

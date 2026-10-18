@@ -1,0 +1,1 @@
+{ "_doc": "Hosts that asked FraywickBot not to probe them (lowercase host names). Recorded in /api/health.", "hosts": [] }

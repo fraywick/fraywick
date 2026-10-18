@@ -1,0 +1,36 @@
+.feed-page .checkbox { margin-bottom: 26px; }
+.feed-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr); gap: 0; }
+.log { padding-right: 28px; border-right: 1.5px solid var(--fg); min-width: 0; }
+.log-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.log-head .sec-h { margin: 0; font-size: 30px; }
+.log .tbl-wrap { margin-top: 12px; }
+.log .tbl td a { text-decoration: none; }
+.log .tbl td.name { max-width: 26ch; }
+.log .tbl td a:hover { text-decoration: underline; }
+.log .tbl td.tx a { text-decoration: underline; text-decoration-color: var(--rule-strong); }
+.log #more { margin-top: 16px; }
+.swatches { padding-left: 28px; position: relative; min-width: 0; }
+.swatches .sec-h { margin: 0 0 4px; font-size: 30px; }
+.sw-note { font-size: 12.5px; margin-bottom: 14px; }
+.sw-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; position: relative; z-index: 1; }
+.sw { position: relative; aspect-ratio: 1 / 1.1; border: 1.5px solid var(--fg); border-radius: 12px; display: block; text-decoration: none; color: var(--fg); overflow: hidden; }
+.sw .nm { position: absolute; left: 8px; right: 8px; top: 6px; font-size: 10.5px; color: var(--fg2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sw .cap { position: absolute; left: 0; right: 0; bottom: 4px; z-index: 3; text-align: center; font-size: 11.5px; }
+.sw.suspicious .cap { color: var(--red); font-weight: 700; }
+.sw:hover { background: var(--hover); }
+#sw-gl { position: absolute; z-index: 2; pointer-events: none; }
+.sw-empty { grid-column: 1 / -1; color: var(--fg2); padding: 20px 0; }
+@media (max-width: 1100px) { .sw-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 900px) {
+  .feed-grid { grid-template-columns: 1fr; }
+  .log { padding-right: 0; border-right: 0; }
+  .swatches { padding-left: 0; border-top: 1.5px solid var(--fg); margin-top: 28px; padding-top: 22px; order: -1; margin-top: 0; border-top: 0; margin-bottom: 26px; }
+  .sw-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .log .tbl th:nth-child(5), .log .tbl td:nth-child(5) { display: none; }
+}
+@media (max-width: 520px) {
+  .log .tbl th:nth-child(2), .log .tbl td:nth-child(2) { display: none; }
+  .log .tbl { font-size: 12.5px; }
+  .log .tbl td.name { max-width: 15ch; }
+  .sw .nm { display: none; }
+}

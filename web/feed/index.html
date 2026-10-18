@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Feed · FRAYWICK</title>
+<meta name="description" content="Every change to a tracked MCP server, Agent Skill or package, newest first, with its label, epoch and anchor transaction.">
+<meta name="theme-color" content="#f1eee7">
+<link rel="icon" href="/favicon.ico" sizes="48x48"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest">
+<meta property="og:type" content="website"><meta property="og:site_name" content="FRAYWICK"><meta property="og:title" content="Feed · FRAYWICK"><meta property="og:description" content="Every change to a tracked MCP server, Agent Skill or package, newest first, with its label, epoch and anchor transaction.">
+<meta property="og:image" content="https://fraywick.xyz/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://fraywick.xyz/og.jpg">
+<link rel="preload" href="/assets/fonts/geist-mono.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/sofia-sans-extra-condensed.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/shared/chrome.css">
+<link rel="stylesheet" href="/shared/paper.css">
+<link rel="stylesheet" href="/feed/feed.css">
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js"}}</script>
+</head>
+<body>
+<a class="skip" href="#log">Skip to the change log</a>
+<header id="bar"></header>
+<main class="page feed-page">
+  <form id="check" class="checkbox" action="/check/" method="get" role="search">
+    <label class="sr" for="check-t">MCP server URL, npm:package or SKILL.md link</label>
+    <input id="check-t" name="t" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="paste an MCP server URL, npm package or SKILL.md" required>
+    <button class="btn" type="submit">Check</button>
+  </form>
+  <div class="feed-grid">
+    <section class="log" id="log" aria-labelledby="log-h">
+      <div class="log-head">
+        <h2 class="sec-h" id="log-h">Change Log</h2>
+        <div class="filters" role="group" aria-label="Filter by label">
+          <button type="button" data-label="" aria-pressed="true">all</button>
+          <button type="button" data-label="suspicious" aria-pressed="false">suspicious</button>
+          <button type="button" data-label="behavior" aria-pressed="false">behavior</button>
+          <button type="button" data-label="cosmetic" aria-pressed="false">cosmetic</button>
+          <span class="live-dot" id="live">live</span>
+        </div>
+      </div>
+      <p id="epoch-filter" class="muted" hidden></p>
+      <div class="tbl-wrap"><table class="tbl" id="tbl">
+        <thead><tr><th>Server / item</th><th>Tool</th><th>Time UTC</th><th>Label</th><th>Epoch</th><th>TX</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <p id="state" class="empty" hidden></p>
+      <button id="more" class="btn ghost" type="button" hidden>Load older</button>
+    </section>
+    <aside class="swatches" aria-labelledby="sw-h">
+      <h2 class="sec-h" id="sw-h">Integrity Swatches</h2>
+      <p class="muted sw-note">One woven swatch per recently changed item. A changed item unravels.</p>
+      <div class="sw-grid" id="sw-grid"></div>
+      <canvas id="sw-gl" aria-hidden="true"></canvas>
+    </aside>
+  </div>
+  <p class="statusbar" id="statusbar">anchored on Robinhood Chain</p>
+</main>
+<footer id="foot"></footer>
+<script type="module" src="/shared/site.js"></script>
+<script type="module" src="/feed/feed.js"></script>
+</body>
+</html>

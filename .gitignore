@@ -1,0 +1,22 @@
+# secrets and private notes (never public)
+secrets/
+.ticker
+.deploy-host
+.deploy-domain
+*.env
+!.env.example
+RISET-DAN-ARSITEKTUR.md
+BRIEF.md
+STATUS-*.md
+assets-src/
+marketing/
+
+# local data / builds
+node_modules/
+server/data/
+server/dev-web/
+web/dev/
+contracts/out/
+contracts/cache/
+.DS_Store
+*.log
