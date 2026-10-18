@@ -1,11 +1,11 @@
 // FRAYWICK shared chrome + config: top bar, drawer, footer, toast, clipboard, formatting, safe DOM builder.
-// Links read /site.json (domain, x, telegram, anchor_address, explorer) and /token.json (ca, symbol, launch_at, pons_token_url).
+// Links read /site.json (domain, x, telegram, github, anchor_address, explorer) and /token.json (ca, symbol, launch_at, pons_token_url).
 // A link whose value is null stays hidden. The ticker is never written in code: [data-symbol] shows token.symbol only when set.
 
 export const ZERO = '0x0000000000000000000000000000000000000000'
 export const PONS_HOME = 'https://www.ponsfamily.com'
 
-export const site = { domain: null, x: null, telegram: null, anchor_address: null, explorer: 'https://robinhoodchain.blockscout.com' }
+export const site = { domain: null, x: null, telegram: null, github: null, anchor_address: null, explorer: 'https://robinhoodchain.blockscout.com' }
 export const token = { ca: ZERO, symbol: null, decimals: 18, launch_at: null, pons_token_url: null }
 let loaded = false
 const waiters = []
@@ -159,7 +159,7 @@ function renderFoot(el) {
   el.innerHTML = `<div class="in">
     <a class="wordmark" href="/">${ICON.logo}<span>FRAYWICK</span></a>
     <nav aria-label="Footer"><a href="/feed/">Feed</a><a href="/check/">Check</a><a href="/proof/">Proof</a><a href="/docs/">Docs</a><a href="/docs/#bot">Bot policy</a>
-      <a data-link="x" target="_blank" rel="noopener" hidden>X</a><a data-link="telegram" target="_blank" rel="noopener" hidden>Telegram</a></nav>
+      <a data-link="x" target="_blank" rel="noopener" hidden>X</a><a data-link="telegram" target="_blank" rel="noopener" hidden>Telegram</a><a data-link="github" target="_blank" rel="noopener" hidden>GitHub</a></nav>
     <p class="legal">FRAYWICK reads public tool definitions and stamps their hashes on Robinhood Chain. It routes nothing, hosts nothing and runs no third-party code. Labels describe a diff, not a person or a project. Not affiliated with Anthropic, the MCP project, Robinhood or any listed server. Nothing here is financial advice.</p>
   </div>`
 }
