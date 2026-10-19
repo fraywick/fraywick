@@ -66,9 +66,9 @@ observation of a subject is a silent baseline. `changed` keeps both bodies and a
 
 Score 0–100 counts only what is new in the item (`score.mjs`): imperative instructions aimed at the model (`ignore previous`,
 `before using this tool`, `do not tell the user`, `always call`, `<IMPORTANT>`-style tags, overrides, tool shadowing, exfiltration
-phrasing, secret reads) +30 each (max 60) · hidden / zero-width / bidi / tag unicode +40 · new URL hosts +15 each (max 30), +15 for
+phrasing, secret reads) +30 each (max 60) · hidden / zero-width / bidi / tag unicode +40 · new URL hosts +15 each (max 30; +5 each, max 10, on a newly added tool), +15 for
 tunnel / paste / webhook services or raw IPs · sensitive paths and terms (`~/.ssh`, `id_rsa`, `.env`, cloud credentials, wallet,
-private key, seed phrase …) +20 each (max 40) · new parameters named like `notes`, `context`, `sidenote`, `feedback` … +25 each (max 40) ·
+private key, seed phrase …) +20 each (max 40) · new parameters named like `notes`, `context`, `sidenote`, `feedback` … +25 each (max 40; +15, max 30, on a newly added tool) ·
 `curl | sh` style commands +25 · description length jump +15/+25 · schema changes +5/+3 · widened annotations +15 · removed item 20 ·
 packages: new version 5, maintainers changed 40 (+20 if all replaced), new publisher 20, same version with new bytes 60.
 Labels: `< 20 cosmetic`, `20–59 behavior`, `≥ 60 suspicious`. Suspicious changes are flagged on chain with `flag()` (max 10 per epoch);

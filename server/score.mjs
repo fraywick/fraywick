@@ -77,8 +77,9 @@ export function scoreChange({ kind, change, old: o = null, new: n = null }) {
   if (hidNew > hidOld) add('hidden_unicode', 40, `${hidNew - hidOld} invisible / bidi / tag characters added`)
   const oldHosts = hostsIn(oldText)
   const newHosts = [...hostsIn(newText)].filter((h) => !oldHosts.has(h))
+  const added = change === 'added'   // a new tool's links / params are compared with nothing, so they weigh less
   if (newHosts.length) {
-    add('new_urls', Math.min(30, 15 * newHosts.length), newHosts.slice(0, 5).join(', '))
+    add('new_urls', added ? Math.min(10, 5 * newHosts.length) : Math.min(30, 15 * newHosts.length), newHosts.slice(0, 5).join(', '))
     if (newHosts.some((h) => PASTE.test(h) || /^\d+\.\d+\.\d+\.\d+$/.test(h))) add('new_url_tunnel_or_ip', 15, 'URL to a tunnel / paste / webhook service or a raw IP')
   }
   let sens = 0
@@ -88,7 +89,7 @@ export function scoreChange({ kind, change, old: o = null, new: n = null }) {
     for (const a of o?.arguments || []) if (a?.name) before.add(a.name)
     for (const a of n?.arguments || []) if (a?.name) after.add(a.name)
     const sus = [...after].filter((p) => !before.has(p) && PARAM.test(p))
-    if (sus.length) add('suspicious_params', Math.min(40, 25 * sus.length), sus.slice(0, 5).join(', '))
+    if (sus.length) add('suspicious_params', added ? Math.min(30, 15 * sus.length) : Math.min(40, 25 * sus.length), sus.slice(0, 5).join(', '))
   }
   if (count(SHELL, newText) > count(SHELL, oldText)) add('shell_pipe', 25, snippet(newText, SHELL))
   const dl0 = descOf(o).length, dl1 = descOf(n).length
