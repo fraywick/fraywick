@@ -5,7 +5,7 @@ import { fetchPackage, packageKey } from './sources/packages.mjs'
 import { crawlSkills } from './sources/skills.mjs'
 import { createScheduler, pickRemote, dueAt, hostOf } from './probe.mjs'
 import { itemHash, viewOf, listHash, hashJson, textHash, ZERO32 } from './lib/hash.mjs'
-import { observe } from './observe.mjs'
+import { observe, notePartial } from './observe.mjs'
 import { writeObject } from './objects.mjs'
 
 const MAX_PER_HOST = Number(process.env.HOST_MAX_PER_EPOCH || 240)
@@ -69,7 +69,12 @@ export function applyProbe(store, { serverId, url, type, epoch, at, res }) {
     resourcesHash = res.resources ? listHash(hashesOf(items, 'resource', res.resources)) : ZERO32
     for (const it of items) writeObject(it.hash, it.body)
     const kinds = ['tool', ...(res.prompts ? ['prompt'] : []), ...(res.resources ? ['resource'] : [])]
-    obs = observe(store, { subject: serverId, epoch, at, kinds, items, baseline: !prev?.last_ok_epoch && store.itemsOf(serverId, { bodies: false }).length === 0 })
+    const partialKinds = unstableKinds(prev, res)
+    obs = observe(store, { subject: serverId, epoch, at, kinds, items, partialKinds, baseline: !prev?.last_ok_epoch && store.itemsOf(serverId, { bodies: false }).length === 0 })
+    if (partialKinds.length) {
+      const n = notePartial(store, { subject: serverId, epoch, at, kinds: partialKinds, detail: (res.truncatedKinds || []).length ? 'hit the listing cap (2000 items / 25 pages) or changed size sharply' : 'changed size sharply since the last read' })
+      if (n) obs.changes.push(n)
+    }
   }
   store.putProbe({
     serverId, epoch, at, url, remoteType: type, status: res.status, era: res.era, protocolVersion: res.protocolVersion, httpStatus: res.httpStatus, error: res.error,
@@ -78,9 +83,21 @@ export function applyProbe(store, { serverId, url, type, epoch, at, res }) {
     toolsHash, promptsHash, resourcesHash, toolCount: ok ? items.filter((i) => i.kind === 'tool').length : null,
     promptCount: ok && res.prompts ? res.prompts.length : null, resourceCount: ok && res.resources ? res.resources.length : null,
     truncated: res.truncated, partial: res.partial || null, lastOkAt: ok ? at : null, lastOkEpoch: ok ? epoch : null,
-    authScheme: res.authScheme, resourceMetadata: res.resourceMetadata,
+    authScheme: res.authScheme, resourceMetadata: res.resourceMetadata, partialKinds: ok ? unstableKinds(prev, res) : null,
   })
   return obs
+}
+
+/** kinds whose listing is not trustworthy item by item this time: truncated at our caps, or a ×2 size swing of ≥ 20 items */
+export function unstableKinds(prev, res) {
+  const out = new Set(res.truncatedKinds || (res.truncated ? ['tool'] : []))
+  for (const [kind, list, col] of [['tool', res.tools, 'tool_count'], ['prompt', res.prompts, 'prompt_count'], ['resource', res.resources, 'resource_count']]) {
+    const before = prev?.[col], now = Array.isArray(list) ? list.length : null
+    if (before == null || now == null || (kind === 'tool' && now === 0)) continue
+    if (before >= 2000 || now >= 2000) out.add(kind)   // at the item cap: the server returned some subset
+    else if (Math.abs(now - before) >= 20 && (now > before * 2 || now < before / 2)) out.add(kind)
+  }
+  return [...out]
 }
 const clip = (o) => { if (o == null) return null; const s = JSON.stringify(o); return s.length > 4000 ? { _truncated: true } : o }
 
@@ -135,7 +152,8 @@ export async function crawlPackages({ store, epoch, now = Date.now(), concurrenc
       publishedAt: r.publishedAt, etag: r.etag, status: 'ok', checkedAt: now, lastOkEpoch: epoch, servers })
     writeObject(r.maintainersHash, r.maintainers ? [...new Set(r.maintainers.map((x) => String(x).trim()).filter(Boolean))].sort() : [])
     if (r.integrityText) writeObject(r.integrityHash, r.integrityText, 'txt')
-    const body = { version: r.version, integrity: r.integrity, integrityHash: r.integrityHash, maintainers: r.maintainers, maintainersHash: r.maintainersHash, publisher: r.publisher ?? null }
+    const body = { eco, version: r.version, integrity: r.integrity, integrityHash: r.integrityHash, maintainers: r.maintainers, maintainersHash: r.maintainersHash, publisher: r.publisher ?? null,
+      ...(r.files ? { files: r.files } : {}) }
     const o = observe(store, { subject: key, epoch, at: now, kinds: ['package'], items: [{ kind: 'package', name: key, hash: hashJson({ v: r.version, i: r.integrityHash, m: r.maintainersHash }), body }] })
     stats.changes += o.changes.length
   })

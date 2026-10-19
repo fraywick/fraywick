@@ -2,6 +2,8 @@
 // Only what is NEW in the changed item counts (a phrase that was already there scores nothing).
 // Labels: < 20 cosmetic · 20–59 behavior · ≥ 60 suspicious (→ flag() on chain, max 10 per epoch).
 export const LABELS = { cosmetic: [0, 19], behavior: [20, 59], suspicious: [60, 100] }
+/** bump when scoring rules change: rows scored by an older version are re-scored on start (migrate.mjs) */
+export const SCORER_VERSION = 2
 export const labelOf = (score) => (score >= 60 ? 'suspicious' : score >= 20 ? 'behavior' : 'cosmetic')
 
 const INJECTION = [
@@ -62,8 +64,10 @@ export function scoreChange({ kind, change, old: o = null, new: n = null }) {
   const reasons = []
   const add = (code, points, detail = null) => reasons.push({ code, points, ...(detail ? { detail } : {}) })
   if (kind === 'package') return finish(scorePackage(o, n, change, add), reasons)
-  if (change === 'removed') { add('removed', 20, `${kind} no longer listed`); return finish(0, reasons) }
+  // a single item disappearing is routine (renames, refactors); "every tool vanished" is reported once at server level (observe.mjs)
+  if (change === 'removed') { add('removed', 2, `${kind} no longer listed`); return finish(0, reasons) }
   if (change === 'added') add('added', 5, `new ${kind}`)
+  if (change === 'changed' && isVolatile(o, n)) { add('volatile', 1, 'only numbers, dates, counters or the order of list entries changed'); return finish(0, reasons) }
 
   const oldText = textsOf(o || {}).join('\n'), newText = textsOf(n || {}).join('\n')
   if (change === 'changed' && oldText.replace(/\s+/g, ' ').trim().toLowerCase() === newText.replace(/\s+/g, ' ').trim().toLowerCase() && !schemaChanged(o, n)) {
@@ -116,7 +120,7 @@ function scorePackage(o, n, change, add) {
   if (change === 'added') { add('added', 0, 'first seen'); return 0 }
   if (change === 'removed') { add('removed', 20, 'package no longer found'); return 0 }
   if (o?.version !== n?.version) add('new_version', 5, `${o?.version ?? '?'} → ${n?.version ?? '?'}`)
-  else if (o?.integrityHash && n?.integrityHash && o.integrityHash !== n.integrityHash) add('same_version_new_bytes', 60, `version ${n.version} now has different file hashes`)
+  else if (o?.integrityHash && n?.integrityHash && o.integrityHash !== n.integrityHash) sameVersionBytes(o, n, add)
   const m0 = new Set(o?.maintainers || []), m1 = new Set(n?.maintainers || [])
   const added = [...m1].filter((x) => !m0.has(x)), removed = [...m0].filter((x) => !m1.has(x))
   if (m0.size && (added.length || removed.length)) {
@@ -125,6 +129,69 @@ function scorePackage(o, n, change, add) {
   }
   if (n?.publisher && m0.size && !m0.has(n.publisher)) add('new_publisher', 20, `published by ${n.publisher}`)
   return 0
+}
+
+/**
+ * Same version, different file hashes. npm versions are immutable → suspicious. PyPI lets a maintainer upload more files (wheels for
+ * other platforms) to an existing version and delete files, but never re-upload a filename with other bytes: compare per filename
+ * (body.files = [[filename, sha256]]) or, for older rows, per sha256 set (body.sha256s, or the integrity text object).
+ */
+function sameVersionBytes(o, n, add) {
+  const eco = String(n?.eco || o?.eco || '')
+  const isPypi = eco === 'pypi' || /^sha256:/.test(String(n?.integrity || o?.integrity || ''))
+  if (!isPypi) { add('same_version_new_bytes', 60, `version ${n.version} now has a different tarball hash`); return }
+  const fo = Array.isArray(o?.files) ? new Map(o.files) : null, fn = Array.isArray(n?.files) ? new Map(n.files) : null
+  if (fo && fn) {
+    const changed = [...fo].filter(([f, h]) => fn.has(f) && fn.get(f) !== h).map(([f]) => f)
+    const removed = [...fo.keys()].filter((f) => !fn.has(f)), added = [...fn.keys()].filter((f) => !fo.has(f))
+    if (changed.length) add('same_version_file_changed', 60, `${changed.slice(0, 3).join(', ')} has new bytes under version ${n.version}`)
+    if (removed.length) add('same_version_files_removed', 20, `${removed.length} file(s) removed from version ${n.version}`)
+    if (added.length && !changed.length && !removed.length) add('same_version_files_added', 2, `${added.length} file(s) added to version ${n.version}`)
+    return
+  }
+  const so = shaSet(o), sn = shaSet(n)
+  if (so && sn) {
+    const gone = [...so].filter((h) => !sn.has(h))
+    if (gone.length) add('same_version_files_removed', 20, `${gone.length} file(s) removed or replaced under version ${n.version}`)
+    else add('same_version_files_added', 2, `${[...sn].filter((h) => !so.has(h)).length} file(s) added to version ${n.version}`)
+    return
+  }
+  add('same_version_file_set_changed', 20, `the file set of version ${n.version} changed (PyPI forbids re-uploading a filename, so a file was added or deleted)`)
+}
+const shaSet = (b) => {
+  if (Array.isArray(b?.files)) return new Set(b.files.map(([, h]) => String(h).toLowerCase()))
+  if (Array.isArray(b?.sha256s)) return new Set(b.sha256s.map((h) => String(h).toLowerCase()))
+  if (typeof b?.integrityText === 'string') return new Set(b.integrityText.split('\n').map((l) => l.replace(/^sha256:/, '').trim().toLowerCase()).filter(Boolean))
+  return null
+}
+
+// ───────────────────────────── volatile content (the hash still changes; only the classification differs)
+const VOLATILE = [
+  /\b\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?\b/g,            // ISO dates / timestamps
+  /\b\d{1,2}:\d{2}(:\d{2})?\s*(am|pm|utc|gmt)?\b/gi,                                              // clock times
+  /\b(updated|refreshed|as of|last (updated|refresh(ed)?|sync(ed)?)|generated)\b[^.\n]{0,40}/gi,   // "as of …", "updated 5 minutes ago"
+  /\b\d+\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|days?|weeks?|months?)\s+ago\b/gi,
+  /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,                           // UUIDs
+  /\b[0-9a-f]{12,}\b/gi,                                                                            // long hex ids
+  /[+-]?\d[\d,._ ]*(\.\d+)?\s*[%+kKmMbB]?/g,                                                     // counters, amounts, percentages
+]
+function normText(s) { let t = String(s); for (const re of VOLATILE) t = t.replace(re, '#'); return t.replace(/#(\s*#)+/g, '#').replace(/\s+/g, ' ').trim() }
+/** strings normalised, arrays of primitives sorted (set-like lists such as enum / required emitted in random order) */
+function normDeep(v) {
+  if (typeof v === 'string') return normText(v)
+  if (typeof v === 'number') return '#'
+  if (Array.isArray(v)) { const a = v.map(normDeep); return a.every((x) => typeof x !== 'object' || x === null) ? a.map(String).sort() : a }
+  if (v && typeof v === 'object') return Object.fromEntries(Object.keys(v).sort().map((k) => [k, normDeep(v[k])]))
+  return v
+}
+const IPV4 = /\b\d{1,3}(\.\d{1,3}){3}\b/g
+export function isVolatile(o, n) {
+  if (!o || !n) return false
+  const to = textsOf(o).join('\n'), tn = textsOf(n).join('\n')
+  // numbers inside URLs / IP addresses are not "volatile": a new endpoint must still be scored
+  const keyOf = (t) => JSON.stringify([[...hostsIn(t)].sort(), (t.match(URL_RE) || []).sort(), (t.match(IPV4) || []).sort()])
+  if (keyOf(to) !== keyOf(tn)) return false
+  return JSON.stringify(normDeep(o)) === JSON.stringify(normDeep(n))
 }
 
 function finish(_, reasons) {

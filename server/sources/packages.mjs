@@ -54,7 +54,8 @@ export async function fetchPypi(name, { etag = null, policy = { mode: 'crawl' },
   const uploaded = files.map((f) => f?.upload_time_iso_8601).filter((x) => typeof x === 'string').sort()[0] || null
   return {
     status: 'ok', version: info.version.slice(0, 100), integrity: shas.length ? `sha256:${[...shas].sort()[0]}${shas.length > 1 ? ` (+${shas.length - 1} files)` : ''}` : null,
-    integrityHash: pypiIntegrityHash(shas), integrityText: shas.length ? pypiIntegrityText(shas) : null, maintainers: [...new Set(maint)].sort(), maintainersHash: maintainersHash(maint),
+    integrityHash: pypiIntegrityHash(shas), integrityText: shas.length ? pypiIntegrityText(shas) : null,
+    files: files.filter((f) => typeof f?.filename === 'string' && /^[0-9a-f]{64}$/i.test(f?.digests?.sha256 || '')).map((f) => [f.filename.slice(0, 200), f.digests.sha256.toLowerCase()]).sort((a, b) => (a[0] < b[0] ? -1 : 1)), maintainers: [...new Set(maint)].sort(), maintainersHash: maintainersHash(maint),
     publishedAt: uploaded, etag: res.headers.etag || null,
   }
 }

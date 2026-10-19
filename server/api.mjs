@@ -1,7 +1,9 @@
 // HTTP API (no framework). createApi(ctx) → async (req, res) → true when handled. JSON, CORS read-only, cache headers.
 //   GET  /api/health                  { ok, mode, lastEpoch, crawl, registry, anchor, dryPost }
 //   GET  /api/stats                   servers tracked, tools hashed, skills, packages, changes 24 h, suspicious 24 h, anchors, last tx
-//   GET  /api/feed?cursor=&label=&limit=   recent changes, newest first (cursor = last id seen)
+//   GET  /api/feed?cursor=&label=&minLabel=behavior|suspicious&group=1&include=suppressed&limit=   recent changes, newest first
+//                                     (cursor = last id seen; group=1 → one entry per server per epoch; suppressed noise hidden by default)
+//   GET  /api/flags                   every on-chain flag with its current (possibly revised) label
 //   GET  /api/server/<id>             registry entry + last probe + current items + timeline
 //   GET  /api/item/<id>/history       every distinct version of one item + its changes (id URL-encoded)
 //   GET  /api/items?kind=&cursor=&limit=  tracked subjects (server / skill / package): name, first seen, current hash, last change
@@ -44,6 +46,9 @@ export function publicChange(c, { bodies = false, anchorOf = null } = {}) {
     flag: c.flag_status ? { status: c.flag_status, tx: c.flag_tx, explorer: c.flag_tx ? link.tx(c.flag_tx) : null } : null,
     // first on-chain anchor at or after the change's epoch (the anchor that proves the new state); null until posted
     anchorEpoch: a?.epoch ?? null, anchorTx: a?.tx ?? null, anchorExplorer: a?.tx ? link.tx(a.tx) : null,
+    volatile: !!c.volatile, suppressed: c.suppressed || null,
+    // re-scored after a scorer fix: label/score above are current; the original values (and any on-chain flag) stay as history
+    ...(c.orig_label ? { revisedLabel: c.label, revisedScore: c.score, originalLabel: c.orig_label, originalScore: c.orig_score, revisedNote: c.revised_note, revisedAt: iso(c.revised_at) } : {}),
   }
 }
 const epochView = (r) => r && ({
@@ -88,7 +93,9 @@ export function createApi({ store, chain = null, log = console, trustProxy = pro
       serversReadable: one("SELECT COUNT(*) n FROM probes WHERE status = 'ok'").n,
       authRequired: one("SELECT COUNT(*) n FROM probes WHERE status = 'auth_required'").n,
       toolsHashed: items.tool || 0, prompts: items.prompt || 0, resources: items.resource || 0, skills: items.skill || 0, packages: items.package || 0,
+      // changes24h: visible, non-volatile changes (flaps, partial listings and repeated volatile edits are counted in noise24h)
       changes24h: (ch.cosmetic || 0) + (ch.behavior || 0) + (ch.suspicious || 0), byLabel24h: { cosmetic: ch.cosmetic || 0, behavior: ch.behavior || 0, suspicious: ch.suspicious || 0 },
+      noise24h: store.noiseSince(since),
       suspicious24h: ch.suspicious || 0, anchors: store.countConfirmed(), lastTx: last?.tx || null, lastTxExplorer: last?.tx ? link.tx(last.tx) : null,
       lastAnchoredEpoch: last?.epoch ?? null, lastBuiltEpoch: lastBuilt?.epoch ?? null, lastLeafCount: lastBuilt?.leaf_count ?? null,
     }
@@ -203,8 +210,44 @@ export function createApi({ store, chain = null, log = console, trustProxy = pro
         const cursor = Number(url.searchParams.get('cursor')) || Number.MAX_SAFE_INTEGER
         const label = url.searchParams.get('label')
         if (label && !['cosmetic', 'behavior', 'suspicious'].includes(label)) { send(res, 400, { error: 'label must be cosmetic, behavior or suspicious' }); return true }
-        const rows = store.feed({ before: cursor, label, limit })
+        const minLabel = url.searchParams.get('minLabel')
+        if (minLabel && !['behavior', 'suspicious'].includes(minLabel)) { send(res, 400, { error: 'minLabel must be behavior or suspicious' }); return true }
+        const q = { label, minScore: minLabel === 'suspicious' ? 60 : minLabel === 'behavior' ? 20 : null, all: url.searchParams.get('include') === 'suppressed' }
+        if (url.searchParams.get('group') === '1') {
+          // one entry per server (subject) per epoch; rows of one observation are contiguous ids
+          const groups = []
+          let before = cursor, last = null, done = false
+          while (groups.length <= limit && !done) {
+            const rows = store.feed({ ...q, before, limit: 500 })
+            if (rows.length < 500) done = true
+            for (const c of rows) {
+              before = c.id
+              const key = `${c.subject}|${c.epoch}`
+              if (!last || last.key !== key) {
+                if (groups.length === limit) { done = true; break }
+                last = { key, subject: c.subject, epoch: c.epoch, hour: iso(c.epoch * 3_600_000), at: iso(c.at), count: 0, score: 0, label: 'cosmetic', labels: { cosmetic: 0, behavior: 0, suspicious: 0 }, changes: [], more: 0, lastId: c.id }
+                groups.push(last)
+              }
+              last.count++; last.labels[c.label]++; last.lastId = c.id
+              if (c.score > last.score) { last.score = c.score; last.label = c.label }
+              if (last.changes.length < 20) last.changes.push(pc(c)); else last.more++
+            }
+            if (!rows.length) done = true
+          }
+          const full = groups.length === limit
+          for (const g of groups) { delete g.key }
+          send(res, 200, { groups: groups.map(({ lastId, ...g }) => ({ ...g, anchorEpoch: anchorOf(g.epoch)?.epoch ?? null, anchorTx: anchorOf(g.epoch)?.tx ?? null })), next: full ? groups[groups.length - 1].lastId : null }, 'public, max-age=30')
+          return true
+        }
+        const rows = store.feed({ ...q, before: cursor, limit })
         send(res, 200, { changes: rows.map((c) => pc(c)), next: rows.length === limit ? rows[rows.length - 1].id : null }, 'public, max-age=30')
+        return true
+      }
+      if (path === '/api/flags') {
+        // every change flagged on chain, including ones later re-scored or hidden as noise (honest history)
+        const rows = store.db.prepare('SELECT * FROM changes WHERE flag_status IS NOT NULL ORDER BY id DESC LIMIT 500').all()
+          .map((r) => ({ ...r, reasons: store.J(r.reasons), diff: store.J(r.diff), old_body: null, new_body: null }))
+        send(res, 200, { flags: rows.map((c) => pc(c)) }, 'public, max-age=60')
         return true
       }
       if (path.startsWith('/api/server/')) {

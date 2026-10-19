@@ -1,7 +1,7 @@
 // Content-addressed objects served at /snapshots/objects/<hash>.<ext>: the exact bytes whose keccak256 is <hash>
 // (JCS JSON for tools / prompts / resources / maintainer lists, raw bytes for SKILL.md and integrity strings).
 // Snapshots list item hashes; anyone can fetch an object, hash it, and recompute every list hash and leaf.
-import { mkdirSync, writeFileSync, existsSync, renameSync } from 'node:fs'
+import { mkdirSync, writeFileSync, existsSync, renameSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { canonicalize } from './lib/jcs.mjs'
 import { paths } from './config.mjs'
@@ -24,4 +24,10 @@ export function writeObject(hash, value, ext = 'json') {
     renameSync(tmp, file)
   }
   known.add(name)
+}
+
+/** read an object back (null when missing) */
+export function readObject(hash, ext = 'json') {
+  if (!/^0x[0-9a-f]{64}$/.test(String(hash))) return null
+  try { return readFileSync(join(objectsDir(), `${hash.slice(2)}.${ext}`), 'utf8') } catch { return null }
 }

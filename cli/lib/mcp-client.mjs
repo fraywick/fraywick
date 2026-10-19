@@ -126,9 +126,10 @@ export function createProbe({ http, clientInfo = { name: 'fraywick', version: '1
   async function collect(call, caps, out) {
     const t = await listAll(call, 'tools/list', 'tools')
     out.tools = t.items; out.truncated = t.truncated
+    out.truncatedKinds = t.truncated ? ['tool'] : []
     for (const [cap, method, key] of [['prompts', 'prompts/list', 'prompts'], ['resources', 'resources/list', 'resources']]) {
       if (!caps || !caps[cap]) { out[key] = null; continue }
-      try { out[key] = (await listAll(call, method, key)).items } catch (e) {
+      try { const l = await listAll(call, method, key); out[key] = l.items; if (l.truncated) out.truncatedKinds.push(cap.slice(0, -1)) } catch (e) {
         if (e.status === 'auth_required' || e.status === 'rate_limited') throw e
         out[key] = null; out.partial = [...(out.partial || []), `${method}: ${e.message}`.slice(0, 200)]
       }

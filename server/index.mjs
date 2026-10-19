@@ -7,6 +7,7 @@ import { existsSync } from 'node:fs'
 import { join, extname, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { openStore } from './store.mjs'
+import { rescoreAll } from './migrate.mjs'
 import { createApi } from './api.mjs'
 import { createChain } from './chain.mjs'
 import { createRunner } from './runner.mjs'
@@ -15,6 +16,8 @@ import { mode, anchorConfig, dryPost, publicUrl, userAgent } from './config.mjs'
 const ROLE = process.env.ROLE || 'all'
 const PORT = Number(process.env.PORT || 4891)
 const store = openStore()
+// scorer upgrades re-score stored change rows once (hashes / leaves / on-chain flags untouched); both processes may try, one wins
+try { rescoreAll(store) } catch (e) { console.error(`migrate: ${e.message}`) }
 const chain = createChain()
 const WEB_REAL = fileURLToPath(new URL('../web/', import.meta.url))
 const WEB = existsSync(join(WEB_REAL, 'index.html')) ? WEB_REAL : fileURLToPath(new URL('./dev-web/', import.meta.url))

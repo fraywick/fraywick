@@ -64,13 +64,26 @@ Each observation is compared with the last *observed* state of the same subject 
 `changed` per item; only the kinds actually read are compared (an unreadable prompts list is not "all prompts removed"); the first
 observation of a subject is a silent baseline. `changed` keeps both bodies and a word / line diff.
 
+Noise control (scorer v2, 19 Oct; hashes and leaves are unchanged — this only affects what the feed shows):
+- **partial listings**: a list truncated at our caps (2000 items / 25 pages) or swinging ×2 by ≥ 20 items gets no item-level
+  added / removed; one server-level `listing_partial` note per 24 h.
+- **flaps**: an item returning to a hash it had within 24 h (removed → re-added, A → B → A) hides both changes (`suppressed = flap`).
+- **volatile**: if only numbers, dates / timestamps, "N minutes ago", ids, or the order of primitive arrays (enum / required)
+  changed — and no URL / IP changed — the change is `cosmetic` with reason `volatile`; only the first per item per UTC day is shown.
+- **removals** score 2 (cosmetic); every tool vanishing at once is one server-level `all_tools_removed` (behavior) entry.
+- **PyPI same-version file changes**: compared per filename — files added to an existing version are cosmetic, a removed file is
+  behavior, a filename with new bytes is suspicious (npm versions are immutable, so any npm byte change stays suspicious).
+Suppressed rows are kept (`/api/feed?include=suppressed`, item history). When the scorer changes, `migrate.mjs` re-scores stored
+rows once per scorer version; a relabelled row keeps `orig_label` / `orig_score` and a `revised_note` (an on-chain flag stays as
+history; see `/api/flags`).
+
 Score 0–100 counts only what is new in the item (`score.mjs`): imperative instructions aimed at the model (`ignore previous`,
 `before using this tool`, `do not tell the user`, `always call`, `<IMPORTANT>`-style tags, overrides, tool shadowing, exfiltration
 phrasing, secret reads) +30 each (max 60) · hidden / zero-width / bidi / tag unicode +40 · new URL hosts +15 each (max 30; +5 each, max 10, on a newly added tool), +15 for
 tunnel / paste / webhook services or raw IPs · sensitive paths and terms (`~/.ssh`, `id_rsa`, `.env`, cloud credentials, wallet,
 private key, seed phrase …) +20 each (max 40) · new parameters named like `notes`, `context`, `sidenote`, `feedback` … +25 each (max 40; +15, max 30, on a newly added tool) ·
-`curl | sh` style commands +25 · description length jump +15/+25 · schema changes +5/+3 · widened annotations +15 · removed item 20 ·
-packages: new version 5, maintainers changed 40 (+20 if all replaced), new publisher 20, same version with new bytes 60.
+`curl | sh` style commands +25 · description length jump +15/+25 · schema changes +5/+3 · widened annotations +15 · removed item 2 · volatile-only change 1 ·
+packages: new version 5, maintainers changed 40 (+20 if all replaced), new publisher 20, same version with new bytes 60 (npm; PyPI per filename, see above).
 Labels: `< 20 cosmetic`, `20–59 behavior`, `≥ 60 suspicious`. Suspicious changes are flagged on chain with `flag()` (max 10 per epoch);
 the on-chain note carries only our label, score and reason codes. Labels describe the diff, they do not accuse anyone.
 

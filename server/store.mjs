@@ -31,7 +31,8 @@ export function openStore({ memory = process.env.DB === 'memory', dir = DATA_DIR
     CREATE TABLE IF NOT EXISTS probes (server_id TEXT PRIMARY KEY, epoch INTEGER, at INTEGER, url TEXT, remote_type TEXT, status TEXT, era TEXT,
       protocol_version TEXT, http_status INTEGER, error TEXT, ms INTEGER, server_info TEXT, capabilities TEXT, instructions_hash TEXT,
       tools_hash TEXT, prompts_hash TEXT, resources_hash TEXT, tool_count INTEGER, prompt_count INTEGER, resource_count INTEGER,
-      truncated INTEGER, partial TEXT, last_ok_at INTEGER, last_ok_epoch INTEGER, auth_scheme TEXT, resource_metadata TEXT, fail_streak INTEGER NOT NULL DEFAULT 0);
+      truncated INTEGER, partial TEXT, last_ok_at INTEGER, last_ok_epoch INTEGER, auth_scheme TEXT, resource_metadata TEXT, fail_streak INTEGER NOT NULL DEFAULT 0,
+      partial_kinds TEXT);
     CREATE INDEX IF NOT EXISTS probes_status ON probes(status);
     CREATE INDEX IF NOT EXISTS probes_url ON probes(url);
     CREATE TABLE IF NOT EXISTS items (id TEXT PRIMARY KEY, subject TEXT NOT NULL, kind TEXT NOT NULL, name TEXT, hash TEXT NOT NULL, body TEXT,
@@ -58,6 +59,14 @@ export function openStore({ memory = process.env.DB === 'memory', dir = DATA_DIR
       snapshot_sha256 TEXT, stats TEXT, post_status TEXT, tx TEXT, block INTEGER, posted_at INTEGER, attempts INTEGER NOT NULL DEFAULT 0, error TEXT);
     CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT);
   `)
+  // scorer v2 (19 Oct): suppressed = 'flap' | 'volatile_repeat' | 'partial_listing' | 'rolled_up' (kept, hidden from the feed);
+  // volatile = only numbers / dates / list order changed; orig_* + revised_* = re-scored after a scorer fix (on-chain flags stay)
+  const ccols = new Set(db.prepare('PRAGMA table_info(changes)').all().map((c) => c.name))
+  for (const [c, t] of [['suppressed', 'TEXT'], ['volatile', 'INTEGER'], ['orig_score', 'INTEGER'], ['orig_label', 'TEXT'], ['revised_note', 'TEXT'], ['revised_at', 'INTEGER'], ['scorer', 'INTEGER']])
+    if (!ccols.has(c)) db.exec(`ALTER TABLE changes ADD COLUMN ${c} ${t}`)
+  db.exec('CREATE INDEX IF NOT EXISTS changes_at ON changes(at)')
+  const pcols = new Set(db.prepare('PRAGMA table_info(probes)').all().map((c) => c.name))
+  if (!pcols.has('partial_kinds')) db.exec('ALTER TABLE probes ADD COLUMN partial_kinds TEXT')
   const q = (sql) => db.prepare(sql)
   const st = {
     getServer: q('SELECT * FROM servers WHERE id = ?'),
@@ -71,8 +80,8 @@ export function openStore({ memory = process.env.DB === 'memory', dir = DATA_DIR
     activeServers: q('SELECT * FROM servers WHERE removed_at IS NULL'),
     getProbe: q('SELECT * FROM probes WHERE server_id = ?'),
     putProbe: q(`INSERT INTO probes (server_id, epoch, at, url, remote_type, status, era, protocol_version, http_status, error, ms, server_info, capabilities, instructions_hash,
-      tools_hash, prompts_hash, resources_hash, tool_count, prompt_count, resource_count, truncated, partial, last_ok_at, last_ok_epoch, auth_scheme, resource_metadata, fail_streak)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      tools_hash, prompts_hash, resources_hash, tool_count, prompt_count, resource_count, truncated, partial, last_ok_at, last_ok_epoch, auth_scheme, resource_metadata, fail_streak, partial_kinds)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(server_id) DO UPDATE SET epoch = excluded.epoch, at = excluded.at, url = excluded.url, remote_type = excluded.remote_type, status = excluded.status,
         era = excluded.era, protocol_version = excluded.protocol_version, http_status = excluded.http_status, error = excluded.error, ms = excluded.ms,
         server_info = COALESCE(excluded.server_info, probes.server_info), capabilities = COALESCE(excluded.capabilities, probes.capabilities),
@@ -82,7 +91,8 @@ export function openStore({ memory = process.env.DB === 'memory', dir = DATA_DIR
         prompt_count = COALESCE(excluded.prompt_count, probes.prompt_count), resource_count = COALESCE(excluded.resource_count, probes.resource_count),
         truncated = excluded.truncated, partial = excluded.partial, last_ok_at = COALESCE(excluded.last_ok_at, probes.last_ok_at),
         last_ok_epoch = COALESCE(excluded.last_ok_epoch, probes.last_ok_epoch), auth_scheme = excluded.auth_scheme, resource_metadata = excluded.resource_metadata,
-        fail_streak = CASE WHEN excluded.status IN ('ok', 'auth_required') THEN 0 ELSE probes.fail_streak + 1 END`),
+        fail_streak = CASE WHEN excluded.status IN ('ok', 'auth_required') THEN 0 ELSE probes.fail_streak + 1 END,
+        partial_kinds = CASE WHEN excluded.status = 'ok' THEN excluded.partial_kinds ELSE probes.partial_kinds END`),
     probeStatusCounts: q('SELECT status, COUNT(*) n FROM probes WHERE epoch = ? GROUP BY status'),
     itemsOf: q('SELECT i.id, i.subject, i.kind, i.name, i.hash, COALESCE(v.body, i.body) body, i.first_epoch, i.last_epoch, i.changed_epoch, i.removed_epoch FROM items i LEFT JOIN item_versions v ON v.item_id = i.id AND v.hash = i.hash WHERE i.subject = ? ORDER BY i.kind, i.name'),
     itemsOfLite: q('SELECT id, subject, kind, name, hash, first_epoch, last_epoch, changed_epoch, removed_epoch FROM items WHERE subject = ? ORDER BY kind, name'),
@@ -98,15 +108,23 @@ export function openStore({ memory = process.env.DB === 'memory', dir = DATA_DIR
     versionByHash: q('SELECT * FROM item_versions WHERE item_id = ? AND hash = ?'),
     probesByUrl: q('SELECT * FROM probes WHERE url = ? OR url = ? LIMIT 5'),
     itemCounts: q("SELECT kind, COUNT(*) n FROM items WHERE removed_epoch IS NULL GROUP BY kind"),
-    putChange: q(`INSERT INTO changes (epoch, at, subject, item_id, kind, change, old_hash, new_hash, old_body, new_body, diff, score, label, reasons)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+    putChange: q(`INSERT INTO changes (epoch, at, subject, item_id, kind, change, old_hash, new_hash, old_body, new_body, diff, score, label, reasons, suppressed, volatile, scorer)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+    setSuppressed: q('UPDATE changes SET suppressed = ? WHERE id = ? AND suppressed IS NULL'),
+    leaving: q('SELECT id, epoch FROM changes WHERE item_id = ? AND old_hash = ? AND epoch >= ? AND suppressed IS NULL ORDER BY id DESC LIMIT 1'),
+    volatileOnDay: q('SELECT id FROM changes WHERE item_id = ? AND volatile = 1 AND suppressed IS NULL AND at >= ? AND at < ? LIMIT 1'),
+    lastNote: q('SELECT id FROM changes WHERE subject = ? AND change = ? AND epoch >= ? LIMIT 1'),
+    recentVersion: q('SELECT last_epoch FROM item_versions WHERE item_id = ? AND hash = ? AND last_epoch >= ?'),
     getChange: q('SELECT * FROM changes WHERE id = ?'),
-    feed: q('SELECT * FROM changes WHERE id < ? ORDER BY id DESC LIMIT ?'),
-    feedLabel: q('SELECT * FROM changes WHERE id < ? AND label = ? ORDER BY id DESC LIMIT ?'),
+    feed: q('SELECT * FROM changes WHERE id < ? AND suppressed IS NULL ORDER BY id DESC LIMIT ?'),
+    feedLabel: q('SELECT * FROM changes WHERE id < ? AND label = ? AND suppressed IS NULL ORDER BY id DESC LIMIT ?'),
+    feedMin: q('SELECT * FROM changes WHERE id < ? AND score >= ? AND suppressed IS NULL ORDER BY id DESC LIMIT ?'),
+    feedAll: q('SELECT * FROM changes WHERE id < ? ORDER BY id DESC LIMIT ?'),
     changesOfSubject: q('SELECT * FROM changes WHERE subject = ? ORDER BY id DESC LIMIT ?'),
     changesOfItem: q('SELECT * FROM changes WHERE item_id = ? ORDER BY id DESC LIMIT ?'),
     changesOfEpoch: q('SELECT * FROM changes WHERE epoch = ? ORDER BY score DESC, id ASC'),
-    changesSince: q('SELECT label, COUNT(*) n FROM changes WHERE at >= ? GROUP BY label'),
+    changesSince: q('SELECT label, COUNT(*) n FROM changes WHERE at >= ? AND suppressed IS NULL AND COALESCE(volatile, 0) = 0 GROUP BY label'),
+    noiseSince: q("SELECT COALESCE(suppressed, 'volatile') k, COUNT(*) n FROM changes WHERE at >= ? AND (suppressed IS NOT NULL OR volatile = 1) GROUP BY k"),
     setFlag: q('UPDATE changes SET flag_status = ?, flag_tx = ?, flag_error = ? WHERE id = ?'),
     getPackage: q('SELECT * FROM packages WHERE key = ?'),
     putPackage: q(`INSERT INTO packages (key, eco, name, version, integrity, integrity_hash, maintainers, maintainers_hash, published_at, etag, status, error, checked_at, last_ok_epoch, servers, first_seen)
@@ -161,12 +179,12 @@ export function openStore({ memory = process.env.DB === 'memory', dir = DATA_DIR
     },
     markRemoved: (now, seenBefore) => st.markRemoved.run(now, seenBefore).changes,
     activeServers: () => st.activeServers.all().map((r) => row(r, ['remotes', 'packages', 'repository'])),
-    getProbe: (id) => row(st.getProbe.get(id), ['server_info', 'capabilities', 'partial']),
+    getProbe: (id) => row(st.getProbe.get(id), ['server_info', 'capabilities', 'partial', 'partial_kinds']),
     putProbe(p) {
       st.putProbe.run(p.serverId, p.epoch, p.at, p.url, p.remoteType, p.status, p.era ?? null, p.protocolVersion ?? null, p.httpStatus ?? null, p.error ?? null, p.ms ?? null,
         S(p.serverInfo), S(p.capabilities), p.instructionsHash ?? null, p.toolsHash ?? null, p.promptsHash ?? null, p.resourcesHash ?? null,
         p.toolCount ?? null, p.promptCount ?? null, p.resourceCount ?? null, p.truncated ? 1 : 0, S(p.partial), p.lastOkAt ?? null, p.lastOkEpoch ?? null,
-        p.authScheme ?? null, p.resourceMetadata ?? null, p.status === 'ok' || p.status === 'auth_required' ? 0 : 1)
+        p.authScheme ?? null, p.resourceMetadata ?? null, p.status === 'ok' || p.status === 'auth_required' ? 0 : 1, S(p.partialKinds))
     },
     probeStatusCounts: (epoch) => Object.fromEntries(st.probeStatusCounts.all(epoch).map((r) => [r.status, r.n])),
     okProbes: (epoch) => db.prepare("SELECT p.*, s.version FROM probes p JOIN servers s ON s.id = p.server_id WHERE p.epoch = ? AND p.status = 'ok' ORDER BY p.server_id").all(epoch),
@@ -180,11 +198,19 @@ export function openStore({ memory = process.env.DB === 'memory', dir = DATA_DIR
     itemCounts: () => Object.fromEntries(st.itemCounts.all().map((r) => [r.kind, r.n])),
     putChange(c) {
       return Number(st.putChange.run(c.epoch, c.at, c.subject, c.itemId, c.kind, c.change, c.oldHash ?? null, c.newHash ?? null, S(c.oldBody), S(c.newBody), S(c.diff),
-        c.score, c.label, S(c.reasons)).lastInsertRowid)
+        c.score, c.label, S(c.reasons), c.suppressed ?? null, c.volatile ? 1 : 0, c.scorer ?? null).lastInsertRowid)
     },
+    setSuppressed: (id, reason) => st.setSuppressed.run(reason, id).changes,
+    /** latest visible change of an item that moved away from `hash` since minEpoch */
+    leaving: (itemId, hash, minEpoch) => st.leaving.get(itemId, hash, minEpoch) || null,
+    volatileOnDay: (itemId, t0, t1) => !!st.volatileOnDay.get(itemId, t0, t1),
+    lastNote: (subject, change, minEpoch) => !!st.lastNote.get(subject, change, minEpoch),
+    recentVersion: (itemId, hash, minEpoch) => !!st.recentVersion.get(itemId, hash, minEpoch),
+    noiseSince: (t) => Object.fromEntries(st.noiseSince.all(t).map((r) => [r.k, r.n])),
     getChange: (id) => row(st.getChange.get(id), ['old_body', 'new_body', 'diff', 'reasons']),
-    feed: ({ before = Number.MAX_SAFE_INTEGER, label = null, limit = 50 } = {}) =>
-      (label ? st.feedLabel.all(before, label, limit) : st.feed.all(before, limit)).map((r) => row(r, ['old_body', 'new_body', 'diff', 'reasons'])),
+    feed: ({ before = Number.MAX_SAFE_INTEGER, label = null, minScore = null, all = false, limit = 50 } = {}) =>
+      (all ? st.feedAll.all(before, limit) : label ? st.feedLabel.all(before, label, limit) : minScore != null ? st.feedMin.all(before, minScore, limit) : st.feed.all(before, limit))
+        .map((r) => row(r, ['old_body', 'new_body', 'diff', 'reasons'])),
     changesOfSubject: (s, limit = 200) => st.changesOfSubject.all(s, limit).map((r) => row(r, ['old_body', 'new_body', 'diff', 'reasons'])),
     changesOfItem: (id, limit = 200) => st.changesOfItem.all(id, limit).map((r) => row(r, ['old_body', 'new_body', 'diff', 'reasons'])),
     changesOfEpoch: (e) => st.changesOfEpoch.all(e).map((r) => row(r, ['reasons'])),
