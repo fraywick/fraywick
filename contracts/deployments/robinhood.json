@@ -1,8 +1,9 @@
 {
   "address": "0xdE841BaA3f9158C0b8E064cfF8ce124C864986B3",
-  "block": 91916883,
+  "block": 91916941,
   "chainId": 4663,
   "deployer": "0x75dDeCCA5d425aD470780e24700b7690676d44Bf",
   "owner": "0x26c22014016BE6B55F00E6BBb8C5058801404092",
-  "poster": "0x3D0d1B5dfe2f5004640A42595EbCff5fE3dE59eC"
+  "poster": "0x3D0d1B5dfe2f5004640A42595EbCff5fE3dE59eC",
+  "deployTx": "0xc52c8da3c0a3a669ecfc154e926d7ad89518d8cc7f773e3a52aa97017a31fbed"
 }
