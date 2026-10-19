@@ -3,7 +3,7 @@
 // Labels: < 20 cosmetic · 20–59 behavior · ≥ 60 suspicious (→ flag() on chain, max 10 per epoch).
 export const LABELS = { cosmetic: [0, 19], behavior: [20, 59], suspicious: [60, 100] }
 /** bump when scoring rules change: rows scored by an older version are re-scored on start (migrate.mjs) */
-export const SCORER_VERSION = 2
+export const SCORER_VERSION = 3
 export const labelOf = (score) => (score >= 60 ? 'suspicious' : score >= 20 ? 'behavior' : 'cosmetic')
 
 const INJECTION = [
@@ -26,7 +26,7 @@ const SENSITIVE = [
   ['seed_phrase', /\bseed[\s_-]?phrase|\bmnemonic\b|\brecovery\s+phrase/i],
   ['system_files', /\/etc\/(passwd|shadow)|\bkeychain\b|\bcookies?\.sqlite|Login\s+Data/i],
 ]
-const PARAM = /^(notes?|context|side_?note|feedback|extra|extra_?info|metadata|debug|comment|remarks?|conversation|chat_?history|history|system_?prompt|instructions?|reasoning|thoughts?|memory|summary)$/i
+const PARAM = /^(notes?|context|side_?note|feedback|extra|extra_?info|debug|comment|remarks?|conversation|chat_?history|history|system_?prompt|instructions?|reasoning|thoughts?|memory|summary)$/i
 const HIDDEN = /[​-‏‪-‮⁠-⁤⁦-⁩﻿᠎­]|[\u{E0000}-\u{E007F}]|[\u{E0100}-\u{E01EF}]/gu
 const URL_RE = /\bhttps?:\/\/[^\s"'<>)\]}]+/gi
 const SHELL = /curl[^\n|]{0,200}\|\s*(ba|z)?sh\b|wget[^\n|]{0,200}\|\s*(ba|z)?sh\b|base64\s+(-d|--decode)|\beval\s*\(|powershell\s+-e(nc)?\b|Invoke-Expression|\bnc\s+-e\b/i
@@ -51,6 +51,24 @@ export function paramNames(schema, out = new Set(), depth = 0) {
   return out
 }
 const count = (re, s) => { const m = s.match(new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g')); return m ? m.length : 0 }
+// "holds no private keys", "never asks for your seed phrase", "without a wallet": a term inside a negated clause is a disclaimer
+const NEGATION = /\b(no|never|not|without|nor|neither|zero|doesn'?t|does not|don'?t|do not|won'?t|will not|cannot|can'?t|isn'?t|aren'?t|is not|are not|non-custodial)\b/i
+function countAsserted(re, s) {
+  const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g')
+  let n = 0
+  for (const m of s.matchAll(g)) {
+    const before = s.slice(Math.max(0, m.index - 80), m.index)
+    const clause = before.split(/[.!?;,:\n]|\s[-–—]\s|\b(?:and|but|then|also)\b/i).pop()
+    if (!NEGATION.test(clause)) n++
+  }
+  return n
+}
+// schema / spec / documentation hosts are not "new endpoints"
+const META_HOSTS = /(^|\.)(json-schema\.org|schema\.org|w3\.org|modelcontextprotocol\.io|ietf\.org|rfc-editor\.org|example\.(com|org|net)|spdx\.org|opensource\.org)$/i
+// only these can lift a newly ADDED item to "suspicious": text aimed at the model, or hidden characters
+const ESCALATE = new Set(['instruction:ignore_previous', 'instruction:before_using', 'instruction:hide_from_user', 'instruction:always_call', 'instruction:pseudo_tag',
+  'instruction:override', 'instruction:exfiltration', 'instruction:read_secrets', 'hidden_unicode'])
+const NEGATABLE = new Set(['read_secrets', 'exfiltration'])
 const hostsIn = (s) => new Set((s.match(URL_RE) || []).map((u) => { try { return new URL(u).hostname.toLowerCase() } catch { return null } }).filter(Boolean))
 const snippet = (s, re) => { const m = re.exec(s); if (!m) return null; const i = Math.max(0, m.index - 20); return s.slice(i, m.index + m[0].length + 20).replace(/\s+/g, ' ').slice(0, 100) }
 const descOf = (v) => (typeof v?.description === 'string' ? v.description : typeof v?.text === 'string' ? v.text : '')
@@ -75,19 +93,22 @@ export function scoreChange({ kind, change, old: o = null, new: n = null }) {
     return finish(0, reasons)
   }
   let inj = 0
-  for (const [code, re] of INJECTION) if (count(re, newText) > count(re, oldText)) { inj += 30; add(`instruction:${code}`, 30, snippet(newText, re)) }
+  for (const [code, re] of INJECTION) {
+    const c = NEGATABLE.has(code) ? countAsserted : count
+    if (c(re, newText) > c(re, oldText)) { inj += 30; add(`instruction:${code}`, 30, snippet(newText, re)) }
+  }
   if (inj > 60) reasons.push({ code: 'cap', points: 60 - inj })
   const hidNew = count(HIDDEN, newText), hidOld = count(HIDDEN, oldText)
   if (hidNew > hidOld) add('hidden_unicode', 40, `${hidNew - hidOld} invisible / bidi / tag characters added`)
   const oldHosts = hostsIn(oldText)
-  const newHosts = [...hostsIn(newText)].filter((h) => !oldHosts.has(h))
+  const newHosts = [...hostsIn(newText)].filter((h) => !oldHosts.has(h) && !META_HOSTS.test(h))
   const added = change === 'added'   // a new tool's links / params are compared with nothing, so they weigh less
   if (newHosts.length) {
     add('new_urls', added ? Math.min(10, 5 * newHosts.length) : Math.min(30, 15 * newHosts.length), newHosts.slice(0, 5).join(', '))
     if (newHosts.some((h) => PASTE.test(h) || /^\d+\.\d+\.\d+\.\d+$/.test(h))) add('new_url_tunnel_or_ip', 15, 'URL to a tunnel / paste / webhook service or a raw IP')
   }
   let sens = 0
-  for (const [code, re] of SENSITIVE) if (count(re, newText) > count(re, oldText)) { if (sens < 40) { const p = Math.min(20, 40 - sens); sens += p; add(`sensitive:${code}`, p, snippet(newText, re)) } }
+  for (const [code, re] of SENSITIVE) if (countAsserted(re, newText) > countAsserted(re, oldText)) { if (sens < 40) { const p = Math.min(20, 40 - sens); sens += p; add(`sensitive:${code}`, p, snippet(newText, re)) } }
   if (kind === 'tool' || kind === 'prompt') {
     const before = paramNames(o?.inputSchema), after = paramNames(n?.inputSchema)
     for (const a of o?.arguments || []) if (a?.name) before.add(a.name)
@@ -106,6 +127,10 @@ export function scoreChange({ kind, change, old: o = null, new: n = null }) {
     if ((a0.readOnlyHint === true && a1.readOnlyHint !== true) || (a0.destructiveHint === false && a1.destructiveHint !== false) || (a0.openWorldHint === false && a1.openWorldHint === true))
       add('annotations_widened', 15, 'tool hints now allow side effects / open world')
     if (!reasons.length) add('text_changed', 2, 'wording changed')
+  }
+  if (added) {
+    const total = reasons.reduce((a, r) => a + r.points, 0)
+    if (total >= 60 && !reasons.some((r) => ESCALATE.has(r.code))) reasons.push({ code: 'added_keywords_cap', points: 59 - total, detail: 'a new item reaches suspicious only with instruction-style text or hidden characters' })
   }
   return finish(0, reasons)
 }

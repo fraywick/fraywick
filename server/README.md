@@ -77,6 +77,12 @@ Suppressed rows are kept (`/api/feed?include=suppressed`, item history). When th
 rows once per scorer version; a relabelled row keeps `orig_label` / `orig_score` and a `revised_note` (an on-chain flag stays as
 history; see `/api/flags`).
 
+Scorer v3 (20 Oct): sensitive terms and secret-read / exfiltration phrases inside a negated clause ("holds no private keys",
+"never asks for a seed phrase", "without a wallet") do not score; schema / spec / example hosts (json-schema.org, schema.org, w3.org,
+modelcontextprotocol.io, example.*) are not new URLs; `metadata` is not a suspicious parameter name; a newly **added** item is capped at
+59 (behavior) unless it carries instruction-style text aimed at the model (ignore previous, before using this tool, do not tell the
+user, always call, `<IMPORTANT>`-style tags, overrides, exfiltration, secret reads) or hidden unicode.
+
 Score 0–100 counts only what is new in the item (`score.mjs`): imperative instructions aimed at the model (`ignore previous`,
 `before using this tool`, `do not tell the user`, `always call`, `<IMPORTANT>`-style tags, overrides, tool shadowing, exfiltration
 phrasing, secret reads) +30 each (max 60) · hidden / zero-width / bidi / tag unicode +40 · new URL hosts +15 each (max 30; +5 each, max 10, on a newly added tool), +15 for

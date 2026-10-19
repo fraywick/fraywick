@@ -19,11 +19,10 @@ export function rescoreAll(store, { log = console, force = false, now = Date.now
   try {
     if (!force && (store.kv('scorer_version') ?? 0) >= SCORER_VERSION) { db.exec('ROLLBACK'); return null }
     const upd = db.prepare(`UPDATE changes SET score = ?, label = ?, reasons = ?, volatile = ?, suppressed = ?, scorer = ?,
-      orig_score = CASE WHEN ? THEN COALESCE(orig_score, score) ELSE orig_score END, orig_label = CASE WHEN ? THEN COALESCE(orig_label, label) ELSE orig_label END,
-      revised_note = CASE WHEN ? THEN ? ELSE revised_note END, revised_at = CASE WHEN ? THEN ? ELSE revised_at END WHERE id = ?`)
+      orig_score = ?, orig_label = ?, revised_note = ?, revised_at = ? WHERE id = ?`)
     const J = store.J
     const enrich = (b) => (b && b.integrityHash && !b.files && !b.integrityText ? { ...b, integrityText: readObject(b.integrityHash, 'txt') || undefined } : b)
-    const rows = db.prepare("SELECT id, epoch, at, subject, item_id, kind, change, old_hash, new_hash, old_body, new_body, score, label, flag_status, flag_tx FROM changes WHERE kind <> 'server' ORDER BY id").all()
+    const rows = db.prepare("SELECT id, epoch, at, subject, item_id, kind, change, old_hash, new_hash, old_body, new_body, score, label, flag_status, flag_tx, suppressed, orig_score, orig_label, revised_note, revised_at FROM changes WHERE kind <> 'server' ORDER BY id").all()
     // rotating subsets: ≥ 20 added and ≥ 20 removed of one kind for one server in one epoch
     const churn = new Map()
     for (const r of rows) {
@@ -41,8 +40,9 @@ export function rescoreAll(store, { log = console, force = false, now = Date.now
       const oldBody = r.kind === 'package' ? enrich(J(r.old_body)) : J(r.old_body)
       const newBody = r.kind === 'package' ? enrich(J(r.new_body)) : J(r.new_body)
       const s = classify({ kind: r.kind, change: r.change, oldBody, newBody })
-      let suppressed = null
-      if ((r.change === 'added' || r.change === 'removed') && partialKey.has(`${r.subject}|${r.kind}|${r.epoch}`)) suppressed = 'partial_listing'
+      // decisions taken live (rolled_up, partial notes, earlier flaps) are kept; only new ones are added
+      let suppressed = r.suppressed || null
+      if (!suppressed && (r.change === 'added' || r.change === 'removed') && partialKey.has(`${r.subject}|${r.kind}|${r.epoch}`)) suppressed = 'partial_listing'
       const h = history.get(r.item_id) || []
       if (!suppressed && r.new_hash) {
         const away = [...h].reverse().find((x) => x.old === r.new_hash && x.epoch >= r.epoch - FLAP_EPOCHS && !state.get(x.id)?.suppressed)
@@ -58,11 +58,15 @@ export function rescoreAll(store, { log = console, force = false, now = Date.now
     }
     for (const [id, x] of state) {
       const r = x.row
-      const relabel = x.label !== r.label
-      if (relabel) revised++
-      const note = relabel ? `re-scored after a scorer fix (v${SCORER_VERSION}): ${r.label} ${r.score} → ${x.label} ${x.score}` +
-        (r.flag_status === 'confirmed' || r.flag_status === 'sent' ? `; the on-chain flag for epoch ${r.epoch} (tx ${r.flag_tx}) is kept as history` : '') : null
-      upd.run(x.score, x.label, JSON.stringify(x.reasons), x.volatile ? 1 : 0, x.suppressed, SCORER_VERSION, relabel ? 1 : 0, relabel ? 1 : 0, relabel ? 1 : 0, note, relabel ? 1 : 0, now, id)
+      // compare with the label the row was first published with (orig_* once revised)
+      const origLabel = r.orig_label ?? r.label, origScore = r.orig_score ?? r.score
+      const revisedNow = x.label !== origLabel
+      if (x.label !== r.label) revised++
+      const keepNote = revisedNow && r.orig_label && r.label === x.label
+      const note = !revisedNow ? null : keepNote ? r.revised_note : `re-scored after a scorer fix (v${SCORER_VERSION}): ${origLabel} ${origScore} → ${x.label} ${x.score}` +
+        (r.flag_status === 'confirmed' || r.flag_status === 'sent' ? `; the on-chain flag for epoch ${r.epoch} (tx ${r.flag_tx}) is kept as history` : '')
+      upd.run(x.score, x.label, JSON.stringify(x.reasons), x.volatile ? 1 : 0, x.suppressed, SCORER_VERSION,
+        revisedNow ? origScore : null, revisedNow ? origLabel : null, note, revisedNow ? (keepNote ? r.revised_at : now) : null, id)
     }
     store.kv('scorer_version', SCORER_VERSION)
     db.exec('COMMIT')
