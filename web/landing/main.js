@@ -22,7 +22,7 @@ const tier = tierOf()
 const isMobile = () => innerWidth < 760
 
 // ── state ──
-let items = [], anchors = [], changes = [], stats = null, tool = null
+let items = [], anchors = [], changes = [], groups = [], stats = null, tool = null
 let scene = null, minis = null
 
 const nextStamp = () => new Date((Math.floor((Date.now() / 1000 - 300) / 3600) + 1) * 3600e3 + 300e3)
@@ -32,10 +32,10 @@ const VERB = { server: 'tool changed', skill: 'skill changed', package: 'package
 const verbOf = (c) => (c.change === 'maintainer' ? 'maintainer changed' : c.change === 'added' ? 'added' : c.change === 'removed' ? 'removed' : VERB[c.kind] || 'changed')
 
 async function load() {
-  const [it, an, fd, st] = await Promise.allSettled([getItems(160), getAnchors(48), getFeed({ limit: 100 }), getStats()])
+  const [it, an, fd, st] = await Promise.allSettled([getItems(160), getAnchors(48), getFeed({ group: true, minLabel: 'behavior', limit: 60 }), getStats()])
   if (it.status === 'fulfilled' && it.value) items = it.value.items
   if (an.status === 'fulfilled') anchors = an.value.anchors.filter((a) => a.root && a.status !== 'skipped')
-  if (fd.status === 'fulfilled') changes = fd.value.items
+  if (fd.status === 'fulfilled') { groups = fd.value.groups || []; changes = fd.value.items }
   stats = st.status === 'fulfilled' ? st.value : null
 }
 
@@ -59,16 +59,21 @@ function looseList() {
   const ridgeOf = new Map(onChain().slice(0, 9).map((a, k) => [a.epoch, k]))
   const colOf = new Map(items.map((t, i) => [t.id, i]))
   const seen = new Set(), out = []
-  for (const c of changes) {
-    if (!c.itemId || seen.has(c.itemId) || !['behavior', 'suspicious'].includes(c.label)) continue
-    seen.add(c.itemId)
-    const col = colOf.get(c.itemId)
-    const u = 0.08 + 0.84 * (col != null && items.length ? (col + 0.5) / items.length : hashOf(c.itemId))
-    const k = ridgeOf.get(c.epoch)
-    const v = k != null ? 0.12 + k * 0.098 + 0.045 : 0.06 + hashOf(c.itemId + 'v') * 0.03
-    out.push({ u, v: Math.min(0.9, v), label: c.label, change: c, short: short(c.newHash || '', 3) })
+  for (const g of groups) {
+    if (!g.subject || seen.has(g.subject) || !['behavior', 'suspicious'].includes(g.label)) continue
+    seen.add(g.subject)
+    const c = g.changes.find((x) => x.label === g.label) || g.changes[0]
+    if (!c) continue
+    const col = colOf.get(g.subject)
+    const u = 0.08 + 0.84 * (col != null && items.length ? (col + 0.5) / items.length : hashOf(g.subject))
+    const k = ridgeOf.get(g.epoch)
+    const v = k != null ? 0.12 + k * 0.098 + 0.045 : 0.06 + hashOf(g.subject + 'v') * 0.03
+    out.push({ u, v: Math.min(0.9, v), label: g.label, change: { ...c, itemId: g.subject, count: g.count }, short: short(c.newHash || '', 3) })
     if (out.length >= cap) break
   }
+  // spread threads across the width (ordered by their own hash) so neighbours never overlap
+  const order = out.map((o, i) => [hashOf(o.change.itemId), i]).sort((a, b) => a[0] - b[0])
+  order.forEach(([hh, i], rank) => { out[i].u = 0.12 + 0.76 * ((rank + 0.5) / out.length) + (hh - 0.5) * 0.04; out[i].v = Math.min(0.9, out[i].v + (rank % 3) * 0.022) })
   return out
 }
 function pushData() {
@@ -92,7 +97,7 @@ function buildTags() {
   tagsEl.textContent = ''
   tags = (scene?.loose || []).map((l) => {
     const c = l.change
-    const el = h('a', { class: `tag ${l.label}`, href: serverHref(c.itemId), title: `${c.name || c.itemId}${c.tool ? ' · ' + c.tool : ''} · ${c.label}${c.score != null ? ' ' + c.score + '/100' : ''}` },
+    const el = h('a', { class: `tag ${l.label}`, href: `/change/?id=${c.raw?.id}`, title: `${c.name || c.itemId}${c.tool ? ' · ' + c.tool : ''} · ${c.label}${c.score != null ? ' ' + c.score + '/100' : ''}` },
       isMobile() ? `${verbOf(c).replace(' changed', '')} · ${fmtUtc(epochDate(c.epoch)).replace(' UTC', '')}` : `${verbOf(c)} · ${fmtUtc(epochDate(c.epoch))} · ${short(c.newHash || '', 2).replace(/….*$/, '…')}`)
     tagsEl.append(el)
     return { el, l, w: 0 }
@@ -161,6 +166,35 @@ function fillStory() {
     h('p', null, 'When a definition changes after people trusted it, its thread pulls loose, with the diff and the proof of when.'))
 }
 
+// ── a real change, proven (picked from live data at runtime) ──
+let provenId = null
+async function renderProven() {
+  const sec = $('#proven'), box = $('#proven-card')
+  const chained = onChain()
+  const pick = changes.find((c) => c.change === 'changed' && ['tool', 'prompt', 'resource'].includes(c.itemKind) && c.anchorEpoch != null && chained.some((a) => a.epoch === c.anchorEpoch) && chained.some((a) => a.epoch < c.anchorEpoch))
+  if (!pick) { sec.hidden = true; return }
+  if (provenId === pick.raw.id) return
+  provenId = pick.raw.id
+  sec.hidden = false
+  const { proveSide, itemName, stepList, addStep } = await import('/shared/proofkit.js')
+  const name = itemName(pick.rawItem, pick.itemId)
+  const oldA = chained.find((a) => a.epoch < pick.anchorEpoch), newA = chained.find((a) => a.epoch === pick.anchorEpoch)
+  box.textContent = ''
+  const verdict = h('p', { class: 'pv-verdict' }, 'Checking both hashes against Robinhood Chain in your browser…')
+  box.append(h('p', { class: 'pv-k' }, `${pick.itemKind} `, h('b', null, name), ' on ', h('a', { href: serverHref(pick.itemId) }, pick.itemId)),
+    h('p', { class: 'pv-r' }, h('span', { class: `chip ${pick.label}` }, pick.label), ` ${pick.reasons.map((r) => r.text).slice(0, 2).join(' · ')}`), verdict)
+  const cols = h('div', { class: 'pv-cols' })
+  box.append(cols, h('a', { class: 'pv-more', href: `/change/?id=${pick.raw.id}` }, 'See the diff and every step →'))
+  const run = (label, a, hash) => {
+    const ul = stepList()
+    cols.append(h('div', { class: 'pv-col' }, h('p', { class: 'pv-h' }, `${label} · epoch ${nf(a.epoch)}`), h('p', { class: 'pv-hash' }, hash), ul))
+    return proveSide({ subject: pick.itemId, kind: pick.itemKind, name, hash, epoch: a.epoch, tx: a.tx }, (st) => addStep(ul, st))
+  }
+  const [r1, r2] = await Promise.all([run('before', oldA, pick.oldHash), run('after', newA, pick.newHash)])
+  verdict.textContent = ''
+  verdict.append(r1.ok && r2.ok ? h('b', { class: 'ok' }, '✓ Both versions proven on chain, checked in your browser just now.') : h('b', { class: 'bad' }, 'Not every step passed; see the details.'))
+}
+
 // ── ledger ──
 function renderLedger() {
   const ol = $('#rows'); ol.textContent = ''
@@ -195,7 +229,7 @@ function renderLive() {
   if (!stats) { live.classList.remove('ok'); txt.append('The watchtower API is not reachable right now.'); return }
   live.classList.add('ok')
   const a = onChain()[0]
-  txt.append(`Watching ${nf(stats.readable ?? stats.servers)} servers · ${nf(stats.tools)} tools · ${nf(stats.skills)} skills · ${nf(stats.packages)} packages. `)
+  txt.append(`Watching ${nf(stats.readable ?? stats.servers)} servers · ${nf(stats.tools)} tools · ${nf(stats.skills)} skills · ${nf(stats.packages)} packages (from our own crawl; per-hour counts are in each anchored snapshot). `)
   if (a) txt.append(h('span', null, 'Last stamp: ', h('a', { href: `/proof/#e${a.epoch}` }, `epoch ${nf(a.epoch)}`), ` · ${fmtUtc(a.postedAt || epochDate(a.epoch))} · `, h('a', { href: txUrl(a.tx), target: '_blank', rel: 'noopener' }, 'tx', arrow())))
   else txt.append(`No hour on chain yet; next stamp ${fmtUtc(nextStamp())}.`)
   const set = (k, ...kids) => { const e = document.querySelector(`[data-stat="${k}"]`); if (e) { e.textContent = ''; e.append(...kids) } }
@@ -229,7 +263,7 @@ function bindPointer() {
   const up = () => {
     if (!down) return
     scene.release(); canvas.classList.remove('grabbing')
-    if (down.hit && down.moved < 6) location.href = serverHref(down.hit.l.change.itemId)
+    if (down.hit && down.moved < 6) location.href = `/change/?id=${down.hit.l.change.raw?.id}`
     down = null
   }
   canvas.addEventListener('pointerup', up)
@@ -276,7 +310,7 @@ async function boot() {
     } catch { document.documentElement.classList.add('no-minis') }
   }
   await dataP
-  renderLive(); renderLedger(); fillStory(); pushData(); onScroll()
+  renderLive(); renderLedger(); fillStory(); pushData(); onScroll(); renderProven()
   if (OG || POSTER) { scene?.settle(200); scene?.renderOnce(); document.documentElement.classList.add('shot-ready') }
   tool = await loadTool()
   fillStory(); if (scene) pushData()
@@ -293,7 +327,7 @@ setInterval(async () => {
   const before = key()
   await load()
   renderLive()
-  if (key() !== before) { renderLedger(); fillStory(); pushData() }
+  if (key() !== before) { renderLedger(); fillStory(); pushData(); renderProven() }
 }, 60000)
 
 window.__fw = { get scene() { return scene }, get data() { return { items, anchors, changes, stats, tool } } }

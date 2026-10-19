@@ -159,3 +159,16 @@ details.raw pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.
 .doc code { overflow-wrap: anywhere; }
 .doc pre code { overflow-wrap: normal; }
 .card code { overflow-wrap: anywhere; }
+.bigresult { margin: 6px 0 18px; }
+.bigresult .big-ok, .bigresult .headline { font-family: var(--mono); font-size: clamp(16px, 2vw, 22px); margin: 0 0 8px; overflow-wrap: anywhere; }
+.bigresult .ok, .verify-out .ok, .card .ok { color: var(--ok); }
+.bigresult .bad, .card .bad { color: var(--red); }
+.progress { height: 6px; background: var(--bg2); border-radius: 4px; overflow: hidden; margin: 10px 0; }
+.progress i { display: block; height: 100%; width: 0; background: var(--fg); transition: width .2s; }
+.cmd { position: relative; margin: 0 0 14px; }
+.cmd h3 { margin: 0 0 6px; font-size: 14px; }
+.cmd pre { background: #111; color: #f1eee7; border-radius: 8px; padding: 12px 52px 12px 14px; margin: 0; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cmd .copy { position: absolute; right: 8px; top: 30px; color: #f1eee7; border-color: rgba(241, 238, 231, .3); }
+.cmd .expect { font-size: 12.5px; margin-top: 6px; color: var(--fg2); overflow-wrap: anywhere; }
+.kvs { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; font-size: 13px; margin: 8px 0; }
+.kvs dt { color: var(--fg2); } .kvs dd { margin: 0; overflow-wrap: anywhere; }

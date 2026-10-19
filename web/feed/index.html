@@ -30,16 +30,18 @@
       <div class="log-head">
         <h2 class="sec-h" id="log-h">Change Log</h2>
         <div class="filters" role="group" aria-label="Filter by label">
-          <button type="button" data-label="" aria-pressed="true">all</button>
-          <button type="button" data-label="suspicious" aria-pressed="false">suspicious</button>
-          <button type="button" data-label="behavior" aria-pressed="false">behavior</button>
-          <button type="button" data-label="cosmetic" aria-pressed="false">cosmetic</button>
+          <button type="button" data-q="min" aria-pressed="true">behavior and up</button>
+          <button type="button" data-q="suspicious" aria-pressed="false">suspicious</button>
+          <button type="button" data-q="behavior" aria-pressed="false">behavior</button>
+          <button type="button" data-q="cosmetic" aria-pressed="false">cosmetic</button>
+          <button type="button" data-q="all" aria-pressed="false">everything</button>
           <span class="live-dot" id="live">live</span>
         </div>
       </div>
+      <p id="noise" class="muted noise" hidden></p>
       <p id="epoch-filter" class="muted" hidden></p>
       <div class="tbl-wrap"><table class="tbl" id="tbl">
-        <thead><tr><th>Server / item</th><th>Tool</th><th>Time UTC</th><th>Label</th><th>Epoch</th><th>TX</th></tr></thead>
+        <thead><tr><th>Server / item</th><th>Changed</th><th>Time UTC</th><th>Label</th><th>Epoch</th><th>TX</th></tr></thead>
         <tbody></tbody>
       </table></div>
       <p id="state" class="empty" hidden></p>

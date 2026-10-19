@@ -126,6 +126,7 @@ export function changeLine(c, { link = true } = {}) {
       c.tool ? h('b', null, visible(c.tool)) : '', c.tool ? ' · ' : '', c.change && !['added', 'removed', 'changed'].includes(c.change) ? `${c.change} changed · ` : '',
       c.score != null && c.change !== 'added' ? `score ${c.score}/100` : '',
       link && c.itemId ? [' · ', h('a', { href: serverHref(c.itemId) }, 'server')] : '',
+      c.raw?.id != null ? [' · ', h('a', { href: `/change/?id=${c.raw.id}` }, 'proof')] : '',
       c.tx ? [' · ', h('a', { href: txUrl(c.tx), target: '_blank', rel: 'noopener' }, 'anchor tx', arrow())] : '',
       c.flagTx ? [' · ', h('a', { href: txUrl(c.flagTx), target: '_blank', rel: 'noopener' }, 'flag tx', arrow())] : ''),
     c.newHash ? h('div', { class: 'faint' }, c.oldHash ? `${short(c.oldHash, 6)} → ${short(c.newHash, 6)}` : short(c.newHash, 6)) : '')

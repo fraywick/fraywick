@@ -18,7 +18,12 @@
 <header id="bar"></header>
 <main class="page">
   <div class="page-head"><h1 class="disp">Proof</h1><p class="muted" style="margin:0">One merkle root per hour, on Robinhood Chain.</p></div>
-  <section class="grid2" id="contract"></section>
+  <section id="auto" class="card bigresult" aria-live="polite"></section>
+  <section id="sample" class="card" aria-live="polite" hidden></section>
+  <h2 class="sec-h">Verify without us</h2>
+  <p class="muted">No FRAYWICK code needed: these call the public Robinhood Chain RPC and the public OpenZeppelin library directly.</p>
+  <div id="cmds"></div>
+  <section class="grid2" id="contract" style="margin-top:28px"></section>
   <h2 class="sec-h">Anchors</h2>
   <p class="muted">Pick any hour and press <b>recompute</b>: your browser downloads that hour's snapshot, hashes every leaf, rebuilds the StandardMerkleTree and compares the root with <code>anchors(epoch)</code> on chain.</p>
   <div class="tbl-wrap"><table class="tbl" id="tbl">
@@ -26,6 +31,9 @@
     <tbody></tbody>
   </table></div>
   <p id="state" class="empty" hidden></p>
+  <h2 class="sec-h" id="flags-h">On-chain flags and their current label</h2>
+  <p class="muted">Suspicious changes are also recorded with <code>flag()</code>. A flag on chain is permanent; when a later scorer fix re-labels the change, the current label and the note are shown next to it.</p>
+  <div id="flags"></div>
 </main>
 <footer id="foot"></footer>
 <script type="module" src="/shared/site.js"></script>

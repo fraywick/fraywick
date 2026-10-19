@@ -109,6 +109,35 @@ export function merkleRoot(leafHashes) {
   for (let i = tree.length - 1 - leaves.length; i >= 0; i--) tree[i] = hashPair(tree[2 * i + 1], tree[2 * i + 2])
   return bytesToHex(tree[0])
 }
+// full OZ layout (sorted leaves) → { root, proofFor(leafHex) }
+export function buildTree(leafHashes) {
+  const leaves = leafHashes.map(hexToBytes).sort(cmp)
+  const n = leaves.length
+  const tree = new Array(2 * n - 1)
+  leaves.forEach((l, i) => (tree[tree.length - 1 - i] = l))
+  for (let i = tree.length - 1 - n; i >= 0; i--) tree[i] = hashPair(tree[2 * i + 1], tree[2 * i + 2])
+  return {
+    root: bytesToHex(tree[0]),
+    proofFor(leafHex) {
+      const b = hexToBytes(leafHex)
+      let i = -1
+      for (let k = tree.length - n; k < tree.length; k++) if (cmp(tree[k], b) === 0) { i = k; break }
+      if (i < 0) return null
+      const proof = []
+      while (i > 0) { proof.push(bytesToHex(tree[i % 2 ? i + 1 : i - 1])); i = Math.floor((i - 1) / 2) }
+      return proof
+    },
+  }
+}
+// list hash used for toolsHash / promptsHash / resourcesHash: keccak256(concat(sorted 32-byte hashes)); empty → keccak256(0x)
+export function listHash(hashes) {
+  const hs = hashes.map((h) => String(h).toLowerCase()).sort()
+  const cat = new Uint8Array(hs.length * 32)
+  hs.forEach((h, i) => cat.set(hexToBytes(h), i * 32))
+  return keccakHex(cat)
+}
+export const word32 = (n) => bytesToHex(word(n)).slice(2)
+
 export function processProof(leaf, proof) {
   let h = hexToBytes(leaf)
   for (const p of proof) h = hashPair(h, hexToBytes(p))
@@ -128,7 +157,7 @@ export function snapshotLeaves(snap) {
 
 // ── eth_call ─────────────────────────────────────────────────────────────
 const SEL = {}
-const selector = (sig) => (SEL[sig] ||= bytesToHex(keccak256(sig)).slice(0, 10))
+export const selector = (sig) => (SEL[sig] ||= bytesToHex(keccak256(sig)).slice(0, 10))
 
 let rpcId = 1
 export async function ethCall(to, data, rpc = RPC) {

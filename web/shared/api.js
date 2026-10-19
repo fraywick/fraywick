@@ -118,6 +118,9 @@ export function normChange(c) {
     oldHash: c.oldHash ?? c.old_hash ?? c.before?.hash ?? null,
     newHash: c.newHash ?? c.new_hash ?? c.after?.hash ?? c.hash ?? null,
     tx: c.tx ?? c.txHash ?? c.anchorTx ?? c.anchor_tx ?? null,
+    anchorEpoch: num(c.anchorEpoch ?? c.anchor_epoch),
+    suppressed: c.suppressed || null, volatile: !!c.volatile,
+    revisedLabel: c.revisedLabel || null, originalLabel: c.originalLabel || null, revisedScore: num(c.revisedScore), originalScore: num(c.originalScore), revisedNote: c.revisedNote || null,
     flagTx: c.flagTx ?? c.flag_tx ?? c.flag?.tx ?? null,
     flagStatus: c.flag?.status ?? null,
     before: c.before ?? c.old ?? null,
@@ -157,6 +160,7 @@ export function normStats(s) {
     lastRoot: s.lastRoot ?? s.last_root ?? s.last?.root ?? s.lastAnchor?.root ?? null,
     lastLeafCount: pick('lastLeafCount', 'last_leaf_count', 'last.leafCount', 'lastAnchor.leafCount'),
     lastTx: s.lastTx ?? s.last_tx ?? s.last?.tx ?? s.lastAnchor?.tx ?? null,
+    noise24h: s.noise24h || null, byLabel24h: s.byLabel24h || null,
   }
 }
 export function normCheck(r) {
@@ -191,20 +195,59 @@ export async function getAnchors(limit = 48) {
   const r = FIXTURE ? await fx('anchors') : await j(`/api/anchors?limit=${limit}`)
   return { contract: r?.contract ?? r?.address ?? null, anchors: arr(r, 'anchors', 'items').map(normAnchor).filter((a) => a && a.epoch != null).sort((a, b) => b.epoch - a.epoch).slice(0, limit) }
 }
-export async function getFeed({ cursor, label, limit = 50 } = {}) {
+export function normGroup(g) {
+  const changes = arr(g.changes).map(normChange).filter(Boolean)
+  const first = changes[0] || {}
+  return { raw: g, id: `${g.subject}:${g.epoch}`, subject: g.subject, itemId: g.subject, name: g.subject, kind: first.kind, epoch: num(g.epoch), at: g.at || g.hour,
+    count: num(g.count) ?? changes.length, more: num(g.more) || 0, label: labelOf(g), score: num(g.score), labels: g.labels || null, changes,
+    anchorEpoch: num(g.anchorEpoch), tx: g.anchorTx || null }
+}
+// group=1 → one entry per subject per epoch ({ groups }); otherwise plain changes ({ items })
+export async function getFeed({ cursor, label, limit = 50, group = false, minLabel = null, include = null } = {}) {
   if (FIXTURE) {
     const r = await fx('feed')
     let items = arr(r, 'items').map(normChange)
     if (label) items = items.filter((c) => c.label === label)
-    return { items: items.slice(0, limit), next: null }
+    if (minLabel) items = items.filter((c) => c.label && c.label !== 'cosmetic' && (minLabel !== 'suspicious' || c.label === 'suspicious'))
+    items = items.slice(0, limit)
+    if (group) return { groups: items.map((c) => normGroup({ subject: c.itemId, epoch: c.epoch, at: c.at, count: 1, score: c.score, label: c.label, changes: [c.raw], anchorEpoch: c.epoch, anchorTx: c.tx })), items, next: null }
+    return { items, next: null }
   }
   const p = new URLSearchParams()
   if (cursor) p.set('cursor', cursor)
   if (label) p.set('label', label)
+  if (minLabel) p.set('minLabel', minLabel)
+  if (group) p.set('group', '1')
+  if (include) p.set('include', include)
   p.set('limit', limit)
   const r = await j(`/api/feed?${p}`)
-  return { items: arr(r, 'items', 'changes', 'feed').map(normChange).filter(Boolean), next: r?.next ?? r?.nextCursor ?? r?.cursor ?? null }
+  const next = r?.next ?? r?.nextCursor ?? r?.cursor ?? null
+  if (Array.isArray(r?.groups)) {
+    const groups = r.groups.map(normGroup)
+    return { groups, items: groups.flatMap((g) => g.changes), next }
+  }
+  return { items: arr(r, 'items', 'changes', 'feed').map(normChange).filter(Boolean), next }
 }
+// one change by id (the feed cursor returns ids below it)
+export async function getChange(id) {
+  id = Number(id)
+  if (FIXTURE) { const r = await fx('feed'); return arr(r, 'items').map(normChange).find((c) => String(c.raw.id) === String(id)) || null }
+  const r = await j(`/api/feed?cursor=${id + 1}&limit=5&include=suppressed`)
+  const c = arr(r, 'changes', 'items').find((x) => Number(x.id) === id)
+  return c ? normChange(c) : null
+}
+export async function getFlags() { return FIXTURE ? { flags: [] } : j('/api/flags') }
+// a stored definition by its hash: the exact bytes we hashed (JCS JSON, or raw text for skills)
+export async function getObject(hash) {
+  const hex = String(hash).replace(/^0x/, '').toLowerCase()
+  for (const ext of ['json', 'txt']) {
+    const url = `${API}/snapshots/objects/${hex}.${ext}`
+    try { const r = await fetch(url, { cache: 'force-cache' }); if (r.ok) { const bytes = new Uint8Array(await r.arrayBuffer()); return { url: `/snapshots/objects/${hex}.${ext}`, bytes, text: new TextDecoder().decode(bytes), ext } } } catch {}
+  }
+  return null
+}
+export const absUrl = (path) => (API && /^\/(api|snapshots)\//.test(path) ? API + path : path)
+
 // Tracked items ordered by first seen (warp threads). Needs GET /api/items; null when the endpoint is missing.
 export async function getItems(limit = 160) {
   if (FIXTURE) { const r = await fx('items'); return { total: r.total, items: arr(r, 'items').slice(0, limit).map(normItem) } }

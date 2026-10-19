@@ -51,6 +51,8 @@ leaf hash = keccak256(bytes.concat(keccak256(abi.encode(values))))</code></pre>
     <li><span class="chip suspicious">suspicious</span> 60 or more: also recorded on chain with <code>flag(epoch, subject, oldHash, newHash, severity, note)</code> (at most 10 per hour).</li>
   </ul>
   <p>A label describes a diff. It is not an accusation, and fetched text is never given to a model as instructions.</p>
+  <p><b>Noise.</b> Some differences are not real edits: a server that returns only part of its tool list on one read (partial listing), a definition that flips back to a previous version (flap), or fields that change on every read, such as timestamps or counters (volatile). These are kept in the snapshots, hidden from the default feed, and counted on <a href="/feed/">/feed</a>. When a scorer fix re-labels a change that was already flagged on chain, the flag stays as history and <a href="/proof/#flags-h">/proof</a> shows the current label with a note.</p>
+  <p><b>Proof of a change.</b> Every change has its own page (<code>/change/?id=…</code>): the before and after text from the stored bytes, and both hashes checked in your browser against their anchored hours with <code>anchors()</code> and <code>verify()</code>.</p>
 
   <h2 id="bot">Bot policy</h2>
   <p>Our crawler identifies itself as <code>FraywickBot/1.0 (+<span data-origin></span>/docs#bot)</code>. It sends read-only MCP requests (<code>tools/list</code>, <code>prompts/list</code>, <code>resources/list</code>, and the handshake they need) once an hour, with at most 16 requests in flight overall and about one request per second per host. It never logs in: a server that answers 401 or 403 is recorded as login-required with its registry metadata only. It backs off on 429 and on repeated failures.</p>
