@@ -44,7 +44,7 @@ async function main() {
   const latest = timeline.find((c) => c.label)
   body.append(h('div', { class: 'grid2' },
     h('div', { class: 'card' }, h('dl', { class: 'kv' },
-      h('dt', null, 'kind'), h('dd', null, s.kind || '—'),
+      h('dt', null, 'kind'), h('dd', null, s.kind || (/^skill:/.test(id) ? 'skill' : /^(npm|pypi):/.test(id) ? 'package' : 'server')),
       h('dt', null, 'version'), h('dd', null, s.version ? visible(s.version) : '—'),
       status ? [h('dt', null, 'status'), h('dd', null, status === 'auth_required' ? 'login required: registry metadata only, tools not read' : visible(status))] : '',
       remotes.length ? [h('dt', null, 'remote'), h('dd', null, remotes.map((r) => h('div', null, visible(`${r.type || ''} ${r.url || ''}`.trim()))))] : '',

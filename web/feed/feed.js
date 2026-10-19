@@ -78,7 +78,13 @@ more.addEventListener('click', () => load(false))
 let sw = null, swLast = ''
 async function swatches(items) {
   const uniq = new Map()
-  for (const c of items) if (c.itemId && c.label && !uniq.has(c.itemId)) uniq.set(c.itemId, { name: c.name || c.itemId, label: c.label, href: c.changes?.[0] ? `/change/?id=${c.changes[0].raw.id}` : serverHref(c.itemId) })
+  for (const c of items) {
+    if (!c.itemId || !c.label || uniq.has(c.itemId)) continue
+    const ch = c.changes?.find((x) => x.label === c.label) || c.changes?.[0]
+    const tool = ch ? (ch.tool || itemName(ch.rawItem, ch.itemId)) : ''
+    const parts = String(c.itemId).replace(/^(npm|pypi|skill):/, '').replace(/^@/, '').split('/'), tail = parts.slice(-2).join('/')
+    uniq.set(c.itemId, { key: c.itemId, name: tool && tool !== 'package' ? tool : tail, label: c.label, score: c.score, href: ch ? `/change/?id=${ch.raw.id}` : serverHref(c.itemId) })
+  }
   const list = [...uniq.values()].slice(0, 12)
   const key = list.map((x) => x.href + x.label).join('|')
   if (key === swLast) return

@@ -20,7 +20,8 @@ export function createSwatches(canvas, grid) {
   const swatches = []
   let raf = 0, t = 0
 
-  function make(cell, label, seed) {
+  function make(cell, label, seed, it = {}) {
+    const rnd = (k) => { const x = Math.sin(seed * 91.7 + k * 13.1) * 43758.5453; return x - Math.floor(x) }
     const scene = new THREE.Scene()
     scene.add(new THREE.HemisphereLight(0xffffff, 0xcfc8ba, 1.5))
     const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(-2.5, 2.5, 2.5); scene.add(key)
@@ -42,12 +43,12 @@ export function createSwatches(canvas, grid) {
       if (c < C - 1 && r < R - 1) idx.push(v, v + C, v + 1, v + 1, v + C, v + C + 1)
     }
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setIndex(idx)
-    const N = 22
+    const N = 14 + Math.floor(rnd(1) * 18)
     const st = new THREE.DataTexture(new Uint8Array(N * 4), N, 1, THREE.RGBAFormat); st.needsUpdate = true
     const u = {
-      uPend: { value: 0 }, uUnravel: { value: 0 }, uClothH: { value: SIZE }, uRows: { value: 1 }, uWarpN: { value: N / SIZE }, uPicks: { value: 22 / SIZE }, uRowH: { value: SIZE },
-      uPPR: { value: 22 }, uProgress: { value: 1 }, uClothW: { value: SIZE }, uAA: { value: 1 },
-      cWeft: { value: new THREE.Color(0xe6e1d6) }, cWeft2: { value: new THREE.Color(0xd3cdc0) }, cWarp: { value: new THREE.Color(0xbdb6a8) },
+      uPend: { value: 0 }, uUnravel: { value: 0 }, uClothH: { value: SIZE }, uRows: { value: 1 }, uWarpN: { value: N / SIZE }, uPicks: { value: (14 + Math.floor(rnd(2) * 18)) / SIZE }, uRowH: { value: SIZE },
+      uPPR: { value: 14 + Math.floor(rnd(2) * 18) }, uProgress: { value: 1 }, uClothW: { value: SIZE }, uAA: { value: 1 },
+      cWeft: { value: new THREE.Color().setHSL(0.08 + rnd(3) * 0.06, 0.08 + rnd(4) * 0.12, 0.84 - rnd(5) * 0.12) }, cWeft2: { value: new THREE.Color().setHSL(0.09 + rnd(6) * 0.05, 0.06 + rnd(7) * 0.1, 0.72 - rnd(8) * 0.12) }, cWarp: { value: new THREE.Color().setHSL(0.1, 0.05, 0.62 + rnd(9) * 0.12) },
       cBone: { value: new THREE.Color(0xffffff) }, cSus: { value: new THREE.Color(0xd7261e) }, cBeh: { value: new THREE.Color(0x111111) }, uStatus: { value: st },
     }
     const mesh = new THREE.Mesh(geo, clothMaterial(u))
@@ -71,7 +72,8 @@ export function createSwatches(canvas, grid) {
       const m = new THREE.Mesh(tubes.geo, yarnMaterial(label === 'suspicious' ? 0xd7261e : label === 'behavior' ? 0x1a1a1a : 0xbdb6a8, { twist: 1.4 }))
       scene.add(m)
     }
-    return { cell, label, scene, sys, links, llinks, geo, u, loose, tubes, seed, unravel: 0, target: label && label !== 'cosmetic' ? (label === 'suspicious' ? 0.36 : 0.18) : 0 }
+    const sc = it.score != null ? it.score : label === 'suspicious' ? 70 : label === 'behavior' ? 30 : 5
+    return { cell, label, scene, sys, links, llinks, geo, u, loose, tubes, seed, unravel: 0, target: label === 'cosmetic' ? 0.04 : Math.min(0.45, 0.06 + sc / 180) }
   }
 
   function step(s, dt) {
@@ -131,11 +133,12 @@ export function createSwatches(canvas, grid) {
         cell.className = `sw ${it.label || ''}`
         cell.href = it.href
         cell.title = `${it.name} · ${it.label || 'changed'}`
-        const cap = document.createElement('span'); cap.className = 'cap'; cap.textContent = it.label || ''
+        const cap = document.createElement('span'); cap.className = `cap chip ${it.label || ''}`; cap.textContent = it.label || ''
         const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = it.name
         cell.append(nm, cap)
         grid.append(cell)
-        const s = make(cell, it.label, i * 1.7 + 0.3)
+        let hs = 0; for (const ch of String(it.key || it.name)) hs = (hs * 31 + ch.charCodeAt(0)) % 100003
+        const s = make(cell, it.label, hs / 1000 + 0.3, it)
         if (reduced) { s.unravel = s.target; s.u.uUnravel.value = s.target; for (let k = 0; k < 160; k++) step(s, 1 / 60) }
         sync(s)
         swatches.push(s)

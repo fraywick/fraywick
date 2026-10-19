@@ -405,7 +405,7 @@ export function createScene(canvas, opts = {}) {
     for (const [a, b, L, st] of tasselLinks) ropeLinks.addRest(a, b, L, st)
     list.forEach((d, i) => {
       const s0 = sys.n
-      const len = (d.label === 'suspicious' ? 1.05 : 0.8) * (0.85 + 0.3 * hash(i * 4.7))
+      const len = (d.label === 'suspicious' ? 1.05 : 0.8) * (d.lenF || (0.85 + 0.3 * hash(i * 4.7)))
       const dir = hash(i * 9.1) > 0.5 ? 1 : -1
       const shape = []
       const turns = 1.4 + hash(i * 2.2) * 1.4
@@ -518,7 +518,7 @@ export function createScene(canvas, opts = {}) {
       const x = ((i + 0.5) / n - 0.5) * 2.6
       const m = new THREE.Mesh(lv === 3 ? ballGeo : ballGeoS, lv === 3 ? orangeYarn : i === 0 && lv === 0 ? orangeYarn : boneYarn)
       m.castShadow = true
-      const from = new THREE.Vector3((hash(lv * 10 + i) - 0.5) * 2.6, (hash(lv * 7 + i * 3) - 0.3) * 2.2, -1.2)
+      const from = new THREE.Vector3(0.9 + (hash(lv * 10 + i) - 0.5) * 1.6, (hash(lv * 7 + i * 3) - 0.3) * 2.2, -1.6)
       tree.push({ m, lv, i, to: new THREE.Vector3(x, levelY[lv], 0.9), from })
       story.add(m)
     }
@@ -648,12 +648,12 @@ export function createScene(canvas, opts = {}) {
       const u = (P[k] + W / 2) / W, v = (TOP_Y - P[k + 1]) / H
       if (u < 0 || u > 1 || v < 0 || v > 1) continue
       clothPoint(u, v, v3)
-      if (P[k + 2] < v3.z + 0.075) P[k + 2] = v3.z + 0.075
+      if (P[k + 2] < v3.z + 0.1) P[k + 2] = v3.z + 0.1
     }
     for (const l of loose) for (const q of [l.tA, l.tB]) {
       const k = q * 3, u = (P[k] + W / 2) / W, v = (TOP_Y - P[k + 1]) / H
       if (u < 0 || u > 1 || v < 0 || v > 1) continue
-      clothPoint(u, v, v3); if (P[k + 2] < v3.z + 0.09) P[k + 2] = v3.z + 0.09
+      clothPoint(u, v, v3); if (P[k + 2] < v3.z + 0.17) P[k + 2] = v3.z + 0.17
     }
   }
 
@@ -699,18 +699,19 @@ export function createScene(canvas, opts = {}) {
     VW = w; VH = h; mobile = isMobile
     renderer.setSize(w, h, false)
     camera.aspect = w / h
-    story.scale.setScalar(mobile ? 0.72 : 1); story.position.set(mobile ? 0.35 : 0, mobile ? 1.3 : 0, 0)
-    if (mobile) { target.set(0.05, 1.0, 0); camera.fov = 34 }
+    story.scale.setScalar(mobile ? 1.6 : 1); story.position.set(mobile ? -0.55 : 0, mobile ? -0.4 : 0, mobile ? 1.2 : 0)
+    if (mobile) { target.set(-0.35, -0.15, 0); camera.fov = 34 }
     else { target.set(0.0, 0.05, 0); camera.fov = 32 }
     camera.updateProjectionMatrix()
     placeCamera()
   }
   function placeCamera() {
     const yaw = -0.3 + par.x * 0.085, pitch = -0.1 + par.y * 0.06
-    const D = mobile ? 10.6 : 9.4
+    const D = mobile ? 23 : 9.4
     camera.position.set(target.x + Math.sin(yaw) * Math.cos(pitch) * D, target.y + Math.sin(pitch) * D, target.z + Math.cos(yaw) * Math.cos(pitch) * D)
+    scene.fog.near = D + 1.6; scene.fog.far = D + 13
     camera.lookAt(target)
-    if (mobile) camera.clearViewOffset()
+    if (mobile) camera.setViewOffset(VW, VH, 0, -(0.82 - 0.5) * VH, VW, VH)  // whole tapestry framed below the hero text
     else {
       // put the tapestry in the right ~60%: shift the frustum so the target sits at 64% of the width
       const shift = -(0.66 - 0.5) * VW
@@ -733,7 +734,7 @@ export function createScene(canvas, opts = {}) {
     // step 1: one thread slides out and hangs alone in front
     const s1 = sp(p, 0.05, 0.9), s2 = sp(p, 1.0, 1.85), s3 = sp(p, 2.0, 2.9), s4 = sp(p, 3.0, 3.8), s5 = sp(p, 4.0, 4.8)
     const hang = new THREE.Vector3(-0.95, 1.45, 1.9)
-    const beadC = new THREE.Vector3(-0.35, 0.3, 1.7)
+    const beadC = new THREE.Vector3(0.1, 0.3, 1.5)
     const src = new THREE.Vector3(0.6, 0.9, -1.0)
     for (let k = 0; k < SP; k++) {
       const t = k / (SP - 1)
@@ -750,10 +751,11 @@ export function createScene(canvas, opts = {}) {
       sThread.src[k * 3] = x; sThread.src[k * 3 + 1] = y; sThread.src[k * 3 + 2] = z
     }
     sThread.update()
-    sThreadMesh.visible = p < 2.1
+    sThreadMesh.visible = p < 1.86
     // step 2: the bead with its keccak ring
     bead.visible = s2 > 0.02 && p < 2.15
-    bead.position.copy(beadC); bead.scale.setScalar(Math.max(0.001, s2) * 1.7); bead.rotation.y = time * 0.4 + s2 * 3
+    const hand = sp(p, 1.85, 2.15)
+    bead.position.lerpVectors(beadC, tree[0].to, hand); bead.scale.setScalar(Math.max(0.001, s2) * lerp(1.5, 0.55, hand)); bead.rotation.y = time * 0.4 + s2 * 3
     ring.visible = s2 > 0.3 && p < 2.15
     ring.position.copy(beadC); ring.rotation.set(0.25, -time * 0.35, 0.1); ring.material.opacity = sp(p, 1.3, 1.8) * (1 - sp(p, 1.95, 2.15))
     // step 3: beads fly in and braid upward into a tree; the root glows
@@ -762,9 +764,9 @@ export function createScene(canvas, opts = {}) {
       const f = sp(p, 2.0 + delay, 2.55 + delay)
       const show = p > 1.95 && (n.lv === 3 ? p < 4.1 : p < 3.35)
       n.m.visible = show && f > 0.01
-      const from = n.lv === 0 && n.i === 0 ? beadC : n.from
+      const from = n.lv === 0 && n.i === 0 ? tree[0].to : n.from
       n.m.position.lerpVectors(from, n.to, f)
-      n.m.scale.setScalar(n.lv === 3 ? 0.75 + 0.25 * sp(p, 2.7, 2.9) : 1)
+      n.m.scale.setScalar(n.lv === 3 ? Math.max(0.05, f) * (0.75 + 0.25 * sp(p, 2.7, 2.9)) : Math.max(0.05, Math.min(1, f * 1.5)))
       n.m.rotation.y = time * (0.3 + n.i * 0.05)
     }
     for (const l of treeLinks) {

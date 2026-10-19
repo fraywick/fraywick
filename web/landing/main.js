@@ -56,24 +56,31 @@ async function loadTool() {
 // ── data → scene ──
 function looseList() {
   const cap = tier === 'low' ? 4 : 7
-  const ridgeOf = new Map(onChain().slice(0, 9).map((a, k) => [a.epoch, k]))
-  const colOf = new Map(items.map((t, i) => [t.id, i]))
   const seen = new Set(), out = []
   for (const g of groups) {
     if (!g.subject || seen.has(g.subject) || !['behavior', 'suspicious'].includes(g.label)) continue
     seen.add(g.subject)
     const c = g.changes.find((x) => x.label === g.label) || g.changes[0]
     if (!c) continue
-    const col = colOf.get(g.subject)
-    const u = 0.08 + 0.84 * (col != null && items.length ? (col + 0.5) / items.length : hashOf(g.subject))
-    const k = ridgeOf.get(g.epoch)
-    const v = k != null ? 0.12 + k * 0.098 + 0.045 : 0.06 + hashOf(g.subject + 'v') * 0.03
-    out.push({ u, v: Math.min(0.9, v), label: g.label, change: { ...c, itemId: g.subject, count: g.count }, short: short(c.newHash || '', 3) })
+    out.push({ u: 0, v: 0, label: g.label, change: { ...c, itemId: g.subject, count: g.count, epoch: g.epoch }, short: short(c.newHash || '', 3), lenF: 0.75 + Math.min(1, (g.score || c.score || 20) / 60) * 0.55 })
     if (out.length >= cap) break
   }
-  // spread threads across the width (ordered by their own hash) so neighbours never overlap
-  const order = out.map((o, i) => [hashOf(o.change.itemId), i]).sort((a, b) => a[0] - b[0])
-  order.forEach(([hh, i], rank) => { out[i].u = 0.12 + 0.76 * ((rank + 0.5) / out.length) + (hh - 0.5) * 0.04; out[i].v = Math.min(0.9, out[i].v + (rank % 3) * 0.022) })
+  // each thread leaves the weave at its item's warp column (hash of the id over the visible warp count), kept apart so
+  // neighbours read as separate frays; exit rows are staggered over the upper half
+  const warps = tier === 'low' ? 60 : 90
+  const cols = out.map((o) => (Math.floor(hashOf(o.change.itemId) * warps) + 0.5) / warps)
+  const order = cols.map((u, i) => [u, i]).sort((a, b) => a[0] - b[0])
+  const minGap = 0.7 / Math.max(1, out.length)
+  let prev = -1
+  order.forEach(([u, i], rank) => {
+    let x = 0.1 + u * 0.8
+    if (prev >= 0 && x - prev < minGap) x = prev + minGap
+    prev = x
+    out[i].u = x
+    out[i].v = 0.16 + (((rank * 0.618) + hashOf(out[i].change.itemId + 'r') * 0.3) % 1) * 0.4
+  })
+  const over = prev - 0.92
+  if (over > 0) for (const o of out) o.u = Math.max(0.08, o.u - over)
   return out
 }
 function pushData() {
@@ -102,6 +109,8 @@ function buildTags() {
     tagsEl.append(el)
     return { el, l, w: 0 }
   })
+  const rank = [...tags].sort((a, b) => (b.l.change.epoch - a.l.change.epoch) || ((b.l.change.score || 0) - (a.l.change.score || 0)))
+  rank.forEach((t, i) => (t.rank = i))
 }
 let storyP = -1
 function placeTags() {
@@ -109,11 +118,13 @@ function placeTags() {
   const placed = []
   for (const t of tags) {
     const p = scene.tagScreen(t.l)
-    const on = show && p.z < 1 && p.y > 70 && p.y < innerHeight - 30 && (t.l === hoverL || tags.indexOf(t) < (isMobile() ? 1 : 4))
+    const on = show && p.z < 1 && p.y > 70 && p.y < innerHeight - 30 && (t.l === hoverL || t.rank < (isMobile() ? 1 : 3))
     if (on && !t.w) t.w = t.el.offsetWidth
-    let x = p.x + 18, y = p.y - 2
+    const left = t.rank % 2 === 1
+    let x = left ? p.x - t.w - 18 : p.x + 18, y = p.y - 2 + (t.rank % 3) * 6
     if (x + t.w > innerWidth - 8) x = p.x - t.w - 18
-    for (const o of placed) if (Math.abs(o.y - y) < 27 && Math.abs(o.x - x) < Math.max(o.w, t.w)) y = o.y + 28
+    if (x < 8) x = p.x + 18
+    for (let k = 0; k < 3; k++) for (const o of placed) if (Math.abs(o.y - y) < 30 && x < o.x + o.w + 8 && o.x < x + t.w + 8) y = o.y + 32
     if (on) placed.push({ x, y, w: t.w })
     t.el.classList.toggle('on', on)
     t.el.tabIndex = on ? 0 : -1
@@ -241,7 +252,9 @@ function renderLive() {
 
 // ── token tag ──
 onConfig(() => {
-  const cc = $('#ca-copy'); cc.textContent = ''; cc.append(copyButton(() => token.ca, 'Copy contract address'))
+  const cc = $('#ca-copy'); cc.textContent = ''
+  if (isAddr(token.ca)) cc.append(copyButton(() => token.ca, 'Copy contract address'))
+  else cc.append(h('button', { class: 'copy', type: 'button', disabled: true, title: 'The contract address appears here at launch.', 'aria-label': 'Copy disabled until launch', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>' }))
   $('#ca-note').hidden = isAddr(token.ca)
   const at = launchAt()
   $('#launch-at').textContent = at ? fmtUtc(at, { date: true }) : ''

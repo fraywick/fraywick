@@ -75,3 +75,16 @@ code, .mono { font-family: var(--mono); }
 .foot .wordmark { color: var(--fg); }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+
+/* CA pill (navbar + landing hero) */
+.ca-pill { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 4px 0 12px; border: 1px solid var(--rule-strong); border-radius: 999px; font-family: var(--mono); font-size: 12px; color: var(--fg); white-space: nowrap; background: var(--pill-bg, transparent); }
+.ca-pill .k { font-weight: 600; letter-spacing: .04em; }
+.ca-pill .t { color: var(--fg2); font-size: 11px; }
+.ca-pill .v { color: var(--fg2); }
+.ca-pill.is-live .k { color: var(--accent); }
+.ca-pill .pill-copy { display: inline-grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 50%; background: var(--hover); color: var(--fg); cursor: pointer; }
+.ca-pill .pill-copy svg { width: 13px; height: 13px; }
+.ca-pill .pill-copy:disabled { opacity: .35; cursor: not-allowed; }
+.drawer .ca-pill { margin-top: 12px; align-self: flex-start; }
+@media (max-width: 1180px) { .bar .bar-ca .t { display: none; } }
+@media (max-width: 900px) { .bar .bar-ca { display: none; } }

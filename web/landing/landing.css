@@ -168,17 +168,16 @@ h1 { font-weight: 600; font-size: clamp(46px, 5.6vw, 86px); line-height: .98; le
 }
 @media (max-width: 760px) {
   .hero { padding-top: calc(var(--bar-h) + 22px); min-height: 100svh; }
-  .hero::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(18, 18, 18, .92) 0%, rgba(18, 18, 18, .74) 48%, rgba(18, 18, 18, 0) 72%); pointer-events: none; }
+  .legend { display: none; }
   .hero-copy { width: 100%; }
   h1 { font-size: clamp(38px, 11.5vw, 52px); margin-bottom: 14px; }
   .sub { font-size: 13px; margin-bottom: 18px; }
   .checkbox input { font-size: 13px; padding: 0 6px; }
   .checkbox .btn { padding: 0 16px; }
-  .legend { max-width: none; right: var(--gut); bottom: 56px; font-size: 10.5px; }
   .scroll-cue { left: var(--gut); right: auto; bottom: 24px; }
-  .step { left: var(--gut); right: var(--gut); width: auto; top: auto; bottom: 52px; transform: translateY(12px); background: rgba(18, 18, 18, .9); border: 1px solid var(--rule); border-radius: 12px; padding: 16px 16px 10px; }
+  .step { left: var(--gut); right: var(--gut); width: auto; top: calc(var(--bar-h) + 10px); bottom: auto; transform: translateY(-8px); background: rgba(18, 18, 18, .9); border: 1px solid var(--rule); border-radius: 12px; padding: 14px 16px 8px; max-height: 50svh; overflow: hidden; }
   .step.on { transform: none; }
-  .step h2 { font-size: 26px; margin-bottom: 10px; }
+  .step h2 { font-size: 24px; margin-bottom: 8px; }
   .step .body { font-size: 13px; }
   .step .quote, .step .big { font-size: 11.5px; }
   .dots { bottom: 24px; }
@@ -211,3 +210,7 @@ h1 { font-weight: 600; font-size: clamp(46px, 5.6vw, 86px); line-height: .98; le
 .pv-col a { color: var(--fg2); }
 .pv-more { color: var(--accent); font-weight: 600; text-decoration: none; }
 @media (max-width: 760px) { .pv-cols { grid-template-columns: 1fr; } .pv-card { padding: 16px; } }
+
+.hero-ca { margin-top: 12px; }
+.hero-ca .ca-pill { --pill-bg: rgba(18, 18, 18, .8); }
+.copy:disabled { opacity: .35; cursor: not-allowed; }

@@ -118,13 +118,15 @@ function renderBar(el) {
       <a class="nl" data-link="x" target="_blank" rel="noopener" hidden>X</a>
       <a class="nl" data-link="telegram" target="_blank" rel="noopener" hidden>Telegram</a>
     </nav>
+    <span class="ca-pill bar-ca" data-ca-pill></span>
     <a class="btn buy" data-buy target="_blank" rel="noopener">Buy on Pons</a>
     <button class="burger" type="button" aria-label="Open menu" aria-expanded="false">${ICON.menu}</button>`
   const drawer = h('nav', { class: 'drawer', 'aria-label': 'Menu' })
   drawer.innerHTML = `${LINKS.map(link).join('')}
     <a class="nl" data-link="x" target="_blank" rel="noopener" hidden>X</a>
     <a class="nl" data-link="telegram" target="_blank" rel="noopener" hidden>Telegram</a>
-    <span class="bar-timer" data-timer hidden></span>`
+    <span class="bar-timer" data-timer hidden></span>
+    <span class="ca-pill" data-ca-pill></span>`
   el.after(drawer)
   const burger = el.querySelector('.burger')
   const setOpen = (open) => {
@@ -165,7 +167,29 @@ function renderFoot(el) {
 }
 
 // ── bindings ─────────────────────────────────────────────────────────────
+// CA pill: before launch "CA · SOON" + launch time, copy disabled (the zero address is never copyable);
+// after launch "$SYMBOL · 0x1234…abcd" with a working copy button. Everything comes from token.json.
+const CA_WARN = 'The contract address appears here at launch. Only trust the CA from fraywick.xyz and @fraywick.'
+function renderPill(el) {
+  el.textContent = ''
+  const live = isLive()
+  el.classList.toggle('is-live', live)
+  if (!live) {
+    const at = launchAt()
+    const when = at ? `${at.toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short' })} · ${fmtUtc(at)}` : ''
+    el.title = CA_WARN
+    el.append(h('span', { class: 'k' }, 'CA · SOON'), when ? h('span', { class: 't' }, when) : '',
+      h('button', { class: 'pill-copy', type: 'button', disabled: true, 'aria-label': CA_WARN, title: CA_WARN, html: ICON.copy }))
+    return
+  }
+  el.title = token.ca
+  const btn = h('button', { class: 'pill-copy', type: 'button', 'aria-label': 'Copy contract address', title: 'Copy contract address', html: ICON.copy })
+  btn.addEventListener('click', async () => { if (await copyText(token.ca)) { btn.innerHTML = ICON.check; toast('CA copied'); setTimeout(() => (btn.innerHTML = ICON.copy), 1400) } })
+  el.append(h('span', { class: 'k' }, token.symbol ? `$${token.symbol}` : 'CA'), h('span', { class: 'v' }, short(token.ca, 4)), btn)
+}
+
 export function applyLinks(root = document) {
+  root.querySelectorAll('[data-ca-pill]').forEach(renderPill)
   root.querySelectorAll('[data-link]').forEach((a) => {
     const v = site[a.dataset.link]
     if (v) { a.href = v; a.hidden = false } else { a.removeAttribute('href'); a.hidden = true }
